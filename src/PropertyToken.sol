@@ -22,11 +22,13 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         string location;
         uint256 totalValue;
         uint256 expectedMonthlyIncome;
+        uint256 maxSupply; // Total token supply (set by seller)
         string metadataURI; // 3D/2D visual URL
         bool isActive;
     }
 
     PropertyInfo public property;
+    uint256 public pricePerToken; // Calculated from totalValue / maxSupply
 
     // ===== Compliance Gate =====
     mapping(address => bool) public hasAcceptedTerms;
@@ -54,11 +56,18 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     event Invested(address indexed investor, uint256 amount, uint256 tokens);
 
     constructor(string memory name, string memory symbol, PropertyInfo memory _property) ERC20(name, symbol) {
+        require(_property.maxSupply > 0, "Max supply must be > 0");
+        require(_property.totalValue > 0, "Total value must be > 0");
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
         _grantRole(DISTRIBUTOR_ROLE, msg.sender);
 
         property = _property;
+        pricePerToken = _property.totalValue / _property.maxSupply;
+
+        // Pre-mint all tokens to contract address
+        _mint(address(this), _property.maxSupply);
     }
 
     // ===== Terms Acceptance =====
@@ -72,18 +81,24 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         emit TermsAccepted(msg.sender, block.timestamp);
     }
 
-    // ===== Investment & Mint =====
+    // ===== Investment & Token Purchase =====
     /**
      * @notice Invest in property and receive property tokens
-     * @dev 1 ETH = 1000 tokens (configurable ratio)
+     * @dev Tokens are transferred from contract's pre-minted supply
      */
     function invest() external payable onlyKYCPassed whenNotPaused {
         require(msg.value > 0, "Investment amount must be > 0");
         require(property.isActive, "Property not active");
 
-        // Calculate tokens: 1 ETH = 1000 tokens
-        uint256 tokens = msg.value * 1000;
-        _mint(msg.sender, tokens);
+        // Calculate tokens based on property value and max supply
+        uint256 tokens = msg.value / pricePerToken;
+        require(tokens > 0, "Investment too small");
+
+        uint256 availableTokens = balanceOf(address(this));
+        require(availableTokens >= tokens, "Not enough tokens available");
+
+        // Transfer tokens from contract to investor
+        _transfer(address(this), msg.sender, tokens);
 
         emit Invested(msg.sender, msg.value, tokens);
     }
@@ -101,13 +116,16 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         onlyRole(DISTRIBUTOR_ROLE)
     {
         require(msg.value == amount, "Amount mismatch");
-        require(totalSupply() > 0, "No tokens minted");
+
+        // Only count tokens held by investors (exclude unsold tokens in contract)
+        uint256 soldTokens = totalSupply() - balanceOf(address(this));
+        require(soldTokens > 0, "No tokens sold yet");
 
         distributions.push(
             Distribution({
                 totalAmount: amount,
                 timestamp: block.timestamp,
-                totalSupplyAtDistribution: totalSupply(),
+                totalSupplyAtDistribution: soldTokens,
                 description: description
             })
         );
@@ -156,13 +174,21 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         return distributions[distributionId];
     }
 
+    function getAvailableTokens() external view returns (uint256) {
+        return balanceOf(address(this));
+    }
+
+    function getSoldTokens() external view returns (uint256) {
+        return totalSupply() - balanceOf(address(this));
+    }
+
     // ===== Transfer Restrictions =====
     function _update(address from, address to, uint256 value) internal override whenNotPaused {
-        // Skip checks for minting/burning
-        if (from != address(0)) {
+        // Skip checks for minting/burning and contract address
+        if (from != address(0) && from != address(this)) {
             require(hasAcceptedTerms[from], "Sender must accept terms");
         }
-        if (to != address(0)) {
+        if (to != address(0) && to != address(this)) {
             require(hasAcceptedTerms[to], "Recipient must accept terms");
         }
 

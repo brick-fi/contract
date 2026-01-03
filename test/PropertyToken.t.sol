@@ -22,8 +22,9 @@ contract PropertyTokenTest is Test {
             propertyId: 1,
             name: "Test Property",
             location: "Test Location",
-            totalValue: 100000 * 1e18,
+            totalValue: 100000 * 1e18, // $100,000 property value
             expectedMonthlyIncome: 1000 * 1e18,
+            maxSupply: 100000 * 1e18, // 100,000 tokens max supply
             metadataURI: "ipfs://test",
             isActive: true
         });
@@ -59,7 +60,9 @@ contract PropertyTokenTest is Test {
         token.acceptTerms();
 
         uint256 investAmount = 1 ether;
-        uint256 expectedTokens = investAmount * 1000;
+        // With totalValue = 100,000 ETH and maxSupply = 100,000 tokens:
+        // pricePerToken = 1 ETH, so 1 ETH investment = 1 token
+        uint256 expectedTokens = investAmount / token.pricePerToken();
 
         token.invest{value: investAmount}();
 
@@ -240,7 +243,7 @@ contract PropertyTokenTest is Test {
         vm.prank(admin);
         token.updatePropertyMetadata(newURI);
 
-        (,,,,, string memory metadataURI,) = token.property();
+        (,,,,,, string memory metadataURI,) = token.property();
         assertEq(metadataURI, newURI);
     }
 
@@ -248,7 +251,91 @@ contract PropertyTokenTest is Test {
         vm.prank(admin);
         token.setPropertyActive(false);
 
-        (,,,,,, bool isActive) = token.property();
+        (,,,,,,, bool isActive) = token.property();
         assertFalse(isActive);
+    }
+
+    // ===== Token Supply Tests =====
+    function test_PreMintedSupply() public {
+        // Contract should have all tokens pre-minted
+        assertEq(token.totalSupply(), property.maxSupply);
+        assertEq(token.balanceOf(address(token)), property.maxSupply);
+    }
+
+    function test_GetAvailableTokens() public {
+        // Initially all tokens available
+        assertEq(token.getAvailableTokens(), property.maxSupply);
+
+        // After investment, available tokens decrease
+        vm.prank(investor1);
+        token.acceptTerms();
+        vm.prank(investor1);
+        token.invest{value: 1 ether}();
+
+        uint256 expectedAvailable = property.maxSupply - (1 ether / token.pricePerToken());
+        assertEq(token.getAvailableTokens(), expectedAvailable);
+    }
+
+    function test_GetSoldTokens() public {
+        // Initially no tokens sold
+        assertEq(token.getSoldTokens(), 0);
+
+        // After investment, sold tokens increase
+        vm.prank(investor1);
+        token.acceptTerms();
+        vm.prank(investor1);
+        token.invest{value: 1 ether}();
+
+        uint256 expectedSold = 1 ether / token.pricePerToken();
+        assertEq(token.getSoldTokens(), expectedSold);
+    }
+
+    function test_CannotInvestWhenSoldOut() public {
+        // Give investor1 enough funds to buy all tokens
+        vm.deal(investor1, 100000 ether + 1 ether);
+
+        // Buy all tokens
+        vm.prank(investor1);
+        token.acceptTerms();
+        vm.prank(investor1);
+        token.invest{value: 100000 ether}(); // Buy all tokens
+
+        // Verify all tokens are sold
+        assertEq(token.getAvailableTokens(), 0);
+        assertEq(token.getSoldTokens(), property.maxSupply);
+
+        // Second investor cannot buy
+        vm.prank(investor2);
+        token.acceptTerms();
+        vm.prank(investor2);
+        vm.expectRevert("Not enough tokens available");
+        token.invest{value: 1 ether}();
+    }
+
+    function test_NoShareDilution() public {
+        // Give investors enough funds
+        vm.deal(investor1, 50000 ether + 1 ether);
+        vm.deal(investor2, 25000 ether + 1 ether);
+
+        // Investor1 buys 50% of tokens
+        vm.prank(investor1);
+        token.acceptTerms();
+        vm.prank(investor1);
+        token.invest{value: 50000 ether}();
+
+        uint256 investor1Balance = token.balanceOf(investor1);
+        uint256 investor1Percentage = (investor1Balance * 100) / token.totalSupply();
+
+        // Investor2 buys 25% of tokens
+        vm.prank(investor2);
+        token.acceptTerms();
+        vm.prank(investor2);
+        token.invest{value: 25000 ether}();
+
+        // Investor1's balance should remain the same (no dilution)
+        assertEq(token.balanceOf(investor1), investor1Balance);
+
+        // Investor1's percentage should remain 50%
+        assertEq(investor1Percentage, 50);
     }
 }
