@@ -19,7 +19,6 @@ contract PropertyTokenScript is Script {
             location: "Los Angeles, CA",
             totalValue: 500000 * 1e18, // $500,000 property value
             expectedMonthlyIncome: 3200 * 1e18, // $3,200/month expected
-            maxSupply: 500000 * 1e18, // 500,000 tokens total supply
             metadataURI: "ipfs://QmExample123456789", // Replace with actual IPFS URI
             isActive: true
         });
@@ -31,8 +30,9 @@ contract PropertyTokenScript is Script {
         console.log("Property ID:", property.propertyId);
         console.log("Property Name:", property.name);
         console.log("Property Location:", property.location);
-        console.log("Max Supply:", property.maxSupply);
-        console.log("Price per Token:", token.pricePerToken());
+        console.log("Total Value:", property.totalValue);
+        console.log("Max Supply (auto-calculated):", token.maxSupply());
+        console.log("Token Price (fixed):", token.TOKEN_PRICE());
 
         vm.stopBroadcast();
     }

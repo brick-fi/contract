@@ -22,9 +22,8 @@ contract PropertyTokenTest is Test {
             propertyId: 1,
             name: "Test Property",
             location: "Test Location",
-            totalValue: 100000 * 1e18, // $100,000 property value
+            totalValue: 100000 * 1e18, // $100,000 property value (will generate 2,000 tokens at $50 each)
             expectedMonthlyIncome: 1000 * 1e18,
-            maxSupply: 100000 * 1e18, // 100,000 tokens max supply
             metadataURI: "ipfs://test",
             isActive: true
         });
@@ -59,10 +58,10 @@ contract PropertyTokenTest is Test {
         vm.startPrank(investor1);
         token.acceptTerms();
 
-        uint256 investAmount = 1 ether;
-        // With totalValue = 100,000 ETH and maxSupply = 100,000 tokens:
-        // pricePerToken = 1 ETH, so 1 ETH investment = 1 token
-        uint256 expectedTokens = investAmount / token.pricePerToken();
+        uint256 investAmount = 100 ether;
+        // With TOKEN_PRICE = 50 * 1e18:
+        // tokens = (100 ether * 1e18) / (50 * 1e18) = 2 * 1e18 (2 tokens with decimals)
+        uint256 expectedTokens = (investAmount * 1e18) / token.TOKEN_PRICE();
 
         token.invest{value: investAmount}();
 
@@ -73,7 +72,7 @@ contract PropertyTokenTest is Test {
     function test_CannotInvestWithoutKYC() public {
         vm.prank(investor1);
         vm.expectRevert("Must accept terms first");
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
     }
 
     function test_CannotInvestZero() public {
@@ -94,7 +93,7 @@ contract PropertyTokenTest is Test {
         token.acceptTerms();
 
         vm.expectRevert();
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
         vm.stopPrank();
     }
 
@@ -103,7 +102,7 @@ contract PropertyTokenTest is Test {
         // Setup: investor1 invests
         vm.startPrank(investor1);
         token.acceptTerms();
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
         vm.stopPrank();
 
         // Admin distributes revenue
@@ -119,12 +118,12 @@ contract PropertyTokenTest is Test {
         vm.prank(investor1);
         token.acceptTerms();
         vm.prank(investor1);
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
 
         vm.prank(investor2);
         token.acceptTerms();
         vm.prank(investor2);
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
 
         // Distribute revenue
         uint256 revenueAmount = 0.2 ether;
@@ -145,7 +144,7 @@ contract PropertyTokenTest is Test {
         vm.prank(investor1);
         token.acceptTerms();
         vm.prank(investor1);
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
 
         // Distribute
         vm.prank(admin);
@@ -166,7 +165,7 @@ contract PropertyTokenTest is Test {
         vm.prank(investor1);
         token.acceptTerms();
         vm.prank(investor1);
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
 
         // Distribute
         uint256 revenueAmount = 1 ether;
@@ -184,7 +183,7 @@ contract PropertyTokenTest is Test {
         vm.prank(investor1);
         token.acceptTerms();
         vm.prank(investor1);
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
 
         // Try to transfer to investor2 (no KYC)
         vm.prank(investor1);
@@ -197,7 +196,7 @@ contract PropertyTokenTest is Test {
         vm.prank(investor1);
         token.acceptTerms();
         vm.prank(investor1);
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
 
         vm.prank(investor2);
         token.acceptTerms();
@@ -220,7 +219,7 @@ contract PropertyTokenTest is Test {
         token.acceptTerms();
         vm.prank(investor1);
         vm.expectRevert();
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
     }
 
     function test_Unpause() public {
@@ -233,7 +232,7 @@ contract PropertyTokenTest is Test {
         vm.prank(investor1);
         token.acceptTerms();
         vm.prank(investor1);
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
 
         assertTrue(token.balanceOf(investor1) > 0);
     }
@@ -243,7 +242,7 @@ contract PropertyTokenTest is Test {
         vm.prank(admin);
         token.updatePropertyMetadata(newURI);
 
-        (,,,,,, string memory metadataURI,) = token.property();
+        (,,,,, string memory metadataURI,) = token.property();
         assertEq(metadataURI, newURI);
     }
 
@@ -251,28 +250,31 @@ contract PropertyTokenTest is Test {
         vm.prank(admin);
         token.setPropertyActive(false);
 
-        (,,,,,,, bool isActive) = token.property();
+        (,,,,,, bool isActive) = token.property();
         assertFalse(isActive);
     }
 
     // ===== Token Supply Tests =====
     function test_PreMintedSupply() public {
         // Contract should have all tokens pre-minted
-        assertEq(token.totalSupply(), property.maxSupply);
-        assertEq(token.balanceOf(address(token)), property.maxSupply);
+        // maxSupply = (totalValue * 1e18) / TOKEN_PRICE = (100,000 * 1e18 * 1e18) / (50 * 1e18) = 2,000 * 1e18 tokens
+        uint256 expectedMaxSupply = (property.totalValue * 1e18) / token.TOKEN_PRICE();
+        assertEq(token.maxSupply(), expectedMaxSupply);
+        assertEq(token.totalSupply(), expectedMaxSupply);
+        assertEq(token.balanceOf(address(token)), expectedMaxSupply);
     }
 
     function test_GetAvailableTokens() public {
         // Initially all tokens available
-        assertEq(token.getAvailableTokens(), property.maxSupply);
+        assertEq(token.getAvailableTokens(), token.maxSupply());
 
         // After investment, available tokens decrease
         vm.prank(investor1);
         token.acceptTerms();
         vm.prank(investor1);
-        token.invest{value: 1 ether}();
+        token.invest{value: 100 ether}();
 
-        uint256 expectedAvailable = property.maxSupply - (1 ether / token.pricePerToken());
+        uint256 expectedAvailable = token.maxSupply() - ((100 ether * 1e18) / token.TOKEN_PRICE());
         assertEq(token.getAvailableTokens(), expectedAvailable);
     }
 
@@ -284,44 +286,54 @@ contract PropertyTokenTest is Test {
         vm.prank(investor1);
         token.acceptTerms();
         vm.prank(investor1);
-        token.invest{value: 1 ether}();
+        token.invest{value: 100 ether}();
 
-        uint256 expectedSold = 1 ether / token.pricePerToken();
+        uint256 expectedSold = (100 ether * 1e18) / token.TOKEN_PRICE();
         assertEq(token.getSoldTokens(), expectedSold);
     }
 
     function test_CannotInvestWhenSoldOut() public {
-        // Give investor1 enough funds to buy all tokens
-        vm.deal(investor1, 100000 ether + 1 ether);
+        // maxSupply = 2,000 * 1e18 tokens
+        // To get maxSupply tokens: (investAmount * 1e18) / TOKEN_PRICE = maxSupply
+        // investAmount = (maxSupply * TOKEN_PRICE) / 1e18
+        uint256 totalCost = (token.maxSupply() * token.TOKEN_PRICE()) / 1e18;
+        vm.deal(investor1, totalCost + 100 ether);
 
         // Buy all tokens
         vm.prank(investor1);
         token.acceptTerms();
         vm.prank(investor1);
-        token.invest{value: 100000 ether}(); // Buy all tokens
+        token.invest{value: totalCost}();
 
         // Verify all tokens are sold
         assertEq(token.getAvailableTokens(), 0);
-        assertEq(token.getSoldTokens(), property.maxSupply);
+        assertEq(token.getSoldTokens(), token.maxSupply());
 
         // Second investor cannot buy
         vm.prank(investor2);
         token.acceptTerms();
         vm.prank(investor2);
         vm.expectRevert("Not enough tokens available");
-        token.invest{value: 1 ether}();
+        token.invest{value: 50 ether}();
     }
 
     function test_NoShareDilution() public {
-        // Give investors enough funds
-        vm.deal(investor1, 50000 ether + 1 ether);
-        vm.deal(investor2, 25000 ether + 1 ether);
+        // maxSupply = 2,000 * 1e18 tokens
+        // To buy 50% (1,000 * 1e18 tokens): investAmount = (1000 * 1e18 * TOKEN_PRICE) / 1e18
+        uint256 halfSupply = token.maxSupply() / 2;
+        uint256 quarterSupply = token.maxSupply() / 4;
+
+        uint256 invest1Amount = (halfSupply * token.TOKEN_PRICE()) / 1e18;
+        uint256 invest2Amount = (quarterSupply * token.TOKEN_PRICE()) / 1e18;
+
+        vm.deal(investor1, invest1Amount + 100 ether);
+        vm.deal(investor2, invest2Amount + 100 ether);
 
         // Investor1 buys 50% of tokens
         vm.prank(investor1);
         token.acceptTerms();
         vm.prank(investor1);
-        token.invest{value: 50000 ether}();
+        token.invest{value: invest1Amount}();
 
         uint256 investor1Balance = token.balanceOf(investor1);
         uint256 investor1Percentage = (investor1Balance * 100) / token.totalSupply();
@@ -330,7 +342,7 @@ contract PropertyTokenTest is Test {
         vm.prank(investor2);
         token.acceptTerms();
         vm.prank(investor2);
-        token.invest{value: 25000 ether}();
+        token.invest{value: invest2Amount}();
 
         // Investor1's balance should remain the same (no dilution)
         assertEq(token.balanceOf(investor1), investor1Balance);

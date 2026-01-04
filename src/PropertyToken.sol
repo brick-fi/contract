@@ -14,6 +14,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
+    uint256 public constant TOKEN_PRICE = 50 * 1e18; // Each token = $50 USD
 
     // ===== Property Metadata =====
     struct PropertyInfo {
@@ -22,13 +23,12 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         string location;
         uint256 totalValue;
         uint256 expectedMonthlyIncome;
-        uint256 maxSupply; // Total token supply (set by seller)
         string metadataURI; // 3D/2D visual URL
         bool isActive;
     }
 
     PropertyInfo public property;
-    uint256 public pricePerToken; // Calculated from totalValue / maxSupply
+    uint256 public maxSupply; // Auto-calculated: totalValue / TOKEN_PRICE
 
     // ===== Compliance Gate =====
     mapping(address => bool) public hasAcceptedTerms;
@@ -56,18 +56,22 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     event Invested(address indexed investor, uint256 amount, uint256 tokens);
 
     constructor(string memory name, string memory symbol, PropertyInfo memory _property) ERC20(name, symbol) {
-        require(_property.maxSupply > 0, "Max supply must be > 0");
         require(_property.totalValue > 0, "Total value must be > 0");
+        require(_property.totalValue >= TOKEN_PRICE, "Total value must be >= TOKEN_PRICE");
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
         _grantRole(DISTRIBUTOR_ROLE, msg.sender);
 
         property = _property;
-        pricePerToken = _property.totalValue / _property.maxSupply;
+
+        // Calculate max supply: totalValue / $50
+        // Both are in wei (1e18), so we multiply by 1e18 to get token amount with decimals
+        maxSupply = (_property.totalValue * 1e18) / TOKEN_PRICE;
+        require(maxSupply > 0, "Max supply must be > 0");
 
         // Pre-mint all tokens to contract address
-        _mint(address(this), _property.maxSupply);
+        _mint(address(this), maxSupply);
     }
 
     // ===== Terms Acceptance =====
@@ -85,13 +89,15 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     /**
      * @notice Invest in property and receive property tokens
      * @dev Tokens are transferred from contract's pre-minted supply
+     * @dev Each token represents $50 USD of property value
      */
     function invest() external payable onlyKYCPassed whenNotPaused {
         require(msg.value > 0, "Investment amount must be > 0");
         require(property.isActive, "Property not active");
 
-        // Calculate tokens based on property value and max supply
-        uint256 tokens = msg.value / pricePerToken;
+        // Calculate tokens: Each token = $50 USD
+        // msg.value and TOKEN_PRICE are both in wei (1e18), so we need to multiply by 1e18 to get token amount with decimals
+        uint256 tokens = (msg.value * 1e18) / TOKEN_PRICE;
         require(tokens > 0, "Investment too small");
 
         uint256 availableTokens = balanceOf(address(this));
