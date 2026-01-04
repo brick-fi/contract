@@ -23,8 +23,8 @@ contract PropertyTokenScript is Script {
             isActive: true
         });
 
-        // Deploy PropertyToken
-        token = new PropertyToken("BrickFi Property #1", "BRKFI-P1", property);
+        // Deploy PropertyToken (msg.sender becomes the owner)
+        token = new PropertyToken("BrickFi Property #1", "BRKFI-P1", property, msg.sender);
 
         console.log("PropertyToken deployed to:", address(token));
         console.log("Property ID:", property.propertyId);

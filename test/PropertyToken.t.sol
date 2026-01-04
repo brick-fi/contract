@@ -28,8 +28,8 @@ contract PropertyTokenTest is Test {
             isActive: true
         });
 
-        // Deploy token
-        token = new PropertyToken("Test Property Token", "TPT", property);
+        // Deploy token (admin is the owner)
+        token = new PropertyToken("Test Property Token", "TPT", property, admin);
 
         // Fund test accounts
         vm.deal(investor1, 100 ether);

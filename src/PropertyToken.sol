@@ -55,13 +55,16 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     event RevenueClaimed(address indexed user, uint256 indexed distributionId, uint256 amount);
     event Invested(address indexed investor, uint256 amount, uint256 tokens);
 
-    constructor(string memory name, string memory symbol, PropertyInfo memory _property) ERC20(name, symbol) {
+    constructor(string memory name, string memory symbol, PropertyInfo memory _property, address owner)
+        ERC20(name, symbol)
+    {
         require(_property.totalValue > 0, "Total value must be > 0");
         require(_property.totalValue >= TOKEN_PRICE, "Total value must be >= TOKEN_PRICE");
+        require(owner != address(0), "Owner cannot be zero address");
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(ADMIN_ROLE, msg.sender);
-        _grantRole(DISTRIBUTOR_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, owner);
+        _grantRole(ADMIN_ROLE, owner);
+        _grantRole(DISTRIBUTOR_ROLE, owner);
 
         property = _property;
 
