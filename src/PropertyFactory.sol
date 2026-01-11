@@ -10,6 +10,7 @@ import "./PropertyToken.sol";
  */
 contract PropertyFactory {
     // ===== State Variables =====
+    address public immutable paymentToken;
     PropertyToken[] public allProperties;
     mapping(address => PropertyToken[]) public propertiesByOwner;
     mapping(address => bool) public isPropertyToken;
@@ -24,6 +25,12 @@ contract PropertyFactory {
         uint256 totalValue
     );
 
+    // ===== Constructor =====
+    constructor(address _paymentToken) {
+        require(_paymentToken != address(0), "Payment token cannot be zero address");
+        paymentToken = _paymentToken;
+    }
+
     // ===== Main Functions =====
     /**
      * @notice Create a new PropertyToken contract
@@ -37,7 +44,7 @@ contract PropertyFactory {
         returns (address propertyToken)
     {
         // Deploy new PropertyToken (msg.sender becomes the owner/admin)
-        PropertyToken newProperty = new PropertyToken(name, symbol, _property, msg.sender);
+        PropertyToken newProperty = new PropertyToken(name, symbol, _property, msg.sender, paymentToken);
 
         // Register the property
         allProperties.push(newProperty);

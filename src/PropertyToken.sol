@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
@@ -14,7 +15,10 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
-    uint256 public constant TOKEN_PRICE = 50 * 1e18; // Each token = $50 USD
+    uint256 public constant TOKEN_PRICE = 50 * 1e6; // Each token = $50 USD (6 decimals for standard stablecoins)
+
+    // ===== Payment Token =====
+    IERC20 public immutable paymentToken;
 
     // ===== Property Metadata =====
     struct PropertyInfo {
@@ -55,21 +59,27 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     event RevenueClaimed(address indexed user, uint256 indexed distributionId, uint256 amount);
     event Invested(address indexed investor, uint256 amount, uint256 tokens);
 
-    constructor(string memory name, string memory symbol, PropertyInfo memory _property, address owner)
-        ERC20(name, symbol)
-    {
+    constructor(
+        string memory name,
+        string memory symbol,
+        PropertyInfo memory _property,
+        address owner,
+        address _paymentToken
+    ) ERC20(name, symbol) {
         require(_property.totalValue > 0, "Total value must be > 0");
         require(_property.totalValue >= TOKEN_PRICE, "Total value must be >= TOKEN_PRICE");
         require(owner != address(0), "Owner cannot be zero address");
+        require(_paymentToken != address(0), "Payment token cannot be zero address");
 
         _grantRole(DEFAULT_ADMIN_ROLE, owner);
         _grantRole(ADMIN_ROLE, owner);
         _grantRole(DISTRIBUTOR_ROLE, owner);
 
+        paymentToken = IERC20(_paymentToken);
         property = _property;
 
         // Calculate max supply: totalValue / $50
-        // Both are in wei (1e18), so we multiply by 1e18 to get token amount with decimals
+        // Payment token has 6 decimals, property token has 18 decimals
         maxSupply = (_property.totalValue * 1e18) / TOKEN_PRICE;
         require(maxSupply > 0, "Max supply must be > 0");
 
@@ -93,42 +103,46 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
      * @notice Invest in property and receive property tokens
      * @dev Tokens are transferred from contract's pre-minted supply
      * @dev Each token represents $50 USD of property value
+     * @param amount Amount of payment token to invest (with payment token decimals)
      */
-    function invest() external payable onlyKYCPassed whenNotPaused {
-        require(msg.value > 0, "Investment amount must be > 0");
+    function invest(uint256 amount) external onlyKYCPassed whenNotPaused {
+        require(amount > 0, "Investment amount must be > 0");
         require(property.isActive, "Property not active");
 
         // Calculate tokens: Each token = $50 USD
-        // msg.value and TOKEN_PRICE are both in wei (1e18), so we need to multiply by 1e18 to get token amount with decimals
-        uint256 tokens = (msg.value * 1e18) / TOKEN_PRICE;
+        // amount is in payment token units (6 decimals), TOKEN_PRICE is in payment token units (6 decimals)
+        // Property tokens have 18 decimals
+        uint256 tokens = (amount * 1e18) / TOKEN_PRICE;
         require(tokens > 0, "Investment too small");
 
         uint256 availableTokens = balanceOf(address(this));
         require(availableTokens >= tokens, "Not enough tokens available");
 
-        // Transfer tokens from contract to investor
+        // Transfer payment token from investor to contract
+        require(paymentToken.transferFrom(msg.sender, address(this), amount), "Payment token transfer failed");
+
+        // Transfer property tokens from contract to investor
         _transfer(address(this), msg.sender, tokens);
 
-        emit Invested(msg.sender, msg.value, tokens);
+        emit Invested(msg.sender, amount, tokens);
     }
 
     // ===== Revenue Distribution (Core Feature) =====
     /**
      * @notice Admin triggers revenue distribution
-     * @param amount Amount of revenue to distribute (in wei)
+     * @param amount Amount of revenue to distribute (in payment token units)
      * @param description Description of distribution (e.g., "January 2026 rental income")
      * @dev Creates distribution record that users can claim from
      */
-    function distributeRevenue(uint256 amount, string calldata description)
-        external
-        payable
-        onlyRole(DISTRIBUTOR_ROLE)
-    {
-        require(msg.value == amount, "Amount mismatch");
+    function distributeRevenue(uint256 amount, string calldata description) external onlyRole(DISTRIBUTOR_ROLE) {
+        require(amount > 0, "Amount must be > 0");
 
         // Only count tokens held by investors (exclude unsold tokens in contract)
         uint256 soldTokens = totalSupply() - balanceOf(address(this));
         require(soldTokens > 0, "No tokens sold yet");
+
+        // Transfer payment token from distributor to contract
+        require(paymentToken.transferFrom(msg.sender, address(this), amount), "Payment token transfer failed");
 
         distributions.push(
             Distribution({
@@ -156,10 +170,12 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
 
         // Calculate user's share based on token balance
         uint256 userShare = (dist.totalAmount * balanceOf(msg.sender)) / dist.totalSupplyAtDistribution;
+        require(userShare > 0, "No revenue to claim");
 
         hasClaimed[msg.sender][distributionId] = true;
 
-        payable(msg.sender).transfer(userShare);
+        // Transfer payment token to user
+        require(paymentToken.transfer(msg.sender, userShare), "Payment token transfer failed");
 
         emit RevenueClaimed(msg.sender, distributionId, userShare);
     }
@@ -221,7 +237,9 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         property.isActive = active;
     }
 
-    function withdraw() external onlyRole(ADMIN_ROLE) {
-        payable(msg.sender).transfer(address(this).balance);
+    function withdrawPaymentToken() external onlyRole(ADMIN_ROLE) {
+        uint256 balance = paymentToken.balanceOf(address(this));
+        require(balance > 0, "No payment token to withdraw");
+        require(paymentToken.transfer(msg.sender, balance), "Payment token transfer failed");
     }
 }
