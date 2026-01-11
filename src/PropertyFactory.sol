@@ -32,11 +32,10 @@ contract PropertyFactory {
      * @param _property Property metadata
      * @return propertyToken Address of the newly deployed PropertyToken
      */
-    function createProperty(
-        string memory name,
-        string memory symbol,
-        PropertyToken.PropertyInfo memory _property
-    ) external returns (address propertyToken) {
+    function createProperty(string memory name, string memory symbol, PropertyToken.PropertyInfo memory _property)
+        external
+        returns (address propertyToken)
+    {
         // Deploy new PropertyToken (msg.sender becomes the owner/admin)
         PropertyToken newProperty = new PropertyToken(name, symbol, _property, msg.sender);
 
@@ -45,14 +44,7 @@ contract PropertyFactory {
         propertiesByOwner[msg.sender].push(newProperty);
         isPropertyToken[address(newProperty)] = true;
 
-        emit PropertyCreated(
-            address(newProperty),
-            msg.sender,
-            name,
-            symbol,
-            _property.propertyId,
-            _property.totalValue
-        );
+        emit PropertyCreated(address(newProperty), msg.sender, name, symbol, _property.propertyId, _property.totalValue);
 
         return address(newProperty);
     }
