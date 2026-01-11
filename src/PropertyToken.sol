@@ -142,10 +142,14 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         require(availableTokens >= tokens, "Not enough tokens available");
 
         // Transfer payment token from investor to contract
-        require(paymentToken.transferFrom(msg.sender, address(this), investmentAfterFee), "Payment token transfer failed");
+        require(
+            paymentToken.transferFrom(msg.sender, address(this), investmentAfterFee), "Payment token transfer failed"
+        );
 
         // Transfer platform fee
-        require(paymentToken.transferFrom(msg.sender, platformFeeRecipient, platformFee), "Platform fee transfer failed");
+        require(
+            paymentToken.transferFrom(msg.sender, platformFeeRecipient, platformFee), "Platform fee transfer failed"
+        );
 
         // Track investor
         if (!isInvestor[msg.sender]) {

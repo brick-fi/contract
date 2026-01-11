@@ -188,8 +188,10 @@ contract PropertyFactoryTest is Test {
         propertyToken.invest(100 * 1e6);
         vm.stopPrank();
 
-        // Verify investor received tokens
-        uint256 expectedTokens = (100 * 1e6 * 1e18) / propertyToken.TOKEN_PRICE();
+        // Verify investor received tokens (after 2% platform fee: 98 USDC)
+        uint256 platformFee = (100 * 1e6 * propertyToken.PLATFORM_FEE_PERCENTAGE()) / 100;
+        uint256 amountAfterFee = 100 * 1e6 - platformFee;
+        uint256 expectedTokens = (amountAfterFee * 1e18) / propertyToken.TOKEN_PRICE();
         assertEq(propertyToken.balanceOf(investor), expectedTokens);
     }
 

@@ -47,7 +47,8 @@ contract PropertyFactory {
         returns (address propertyToken)
     {
         // Deploy new PropertyToken (msg.sender becomes the owner/admin)
-        PropertyToken newProperty = new PropertyToken(name, symbol, _property, msg.sender, paymentToken, platformFeeRecipient);
+        PropertyToken newProperty =
+            new PropertyToken(name, symbol, _property, msg.sender, paymentToken, platformFeeRecipient);
 
         // Register the property
         allProperties.push(newProperty);
