@@ -18,8 +18,8 @@ contract PropertyFactoryScript is Script {
         paymentToken = new DemoUSDC();
         console.log("Demo USDC deployed to:", address(paymentToken));
 
-        // Deploy PropertyFactory
-        factory = new PropertyFactory(address(paymentToken));
+        // Deploy PropertyFactory (msg.sender is platform fee recipient)
+        factory = new PropertyFactory(address(paymentToken), msg.sender);
 
         console.log("PropertyFactory deployed to:", address(factory));
         console.log("Payment Token:", address(paymentToken));

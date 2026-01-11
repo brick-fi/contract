@@ -16,9 +16,12 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
     uint256 public constant TOKEN_PRICE = 50 * 1e6; // Each token = $50 USD (6 decimals for standard stablecoins)
+    uint256 public constant PLATFORM_FEE_PERCENTAGE = 2; // 2% platform fee
+    uint256 public constant MIN_INVESTMENT = 50 * 1e6; // Minimum $50 investment
 
     // ===== Payment Token =====
     IERC20 public immutable paymentToken;
+    address public platformFeeRecipient;
 
     // ===== Property Metadata =====
     struct PropertyInfo {
@@ -37,7 +40,13 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     // ===== Compliance Gate =====
     mapping(address => bool) public hasAcceptedTerms;
 
+    // ===== Investor Tracking =====
+    address[] private investors;
+    mapping(address => bool) private isInvestor;
+    mapping(address => uint256) public investmentAmount; // Total USDC invested by each investor
+
     event TermsAccepted(address indexed user, uint256 timestamp);
+    event PlatformFeeCollected(uint256 amount, address recipient);
 
     modifier onlyKYCPassed() {
         require(hasAcceptedTerms[msg.sender], "Must accept terms first");
@@ -45,11 +54,17 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     }
 
     // ===== Distribution =====
+    enum DistributionStatus {
+        Pending,
+        Distributed
+    }
+
     struct Distribution {
         uint256 totalAmount;
         uint256 timestamp;
         uint256 totalSupplyAtDistribution;
         string description;
+        DistributionStatus status;
     }
 
     Distribution[] public distributions;
@@ -64,18 +79,21 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         string memory symbol,
         PropertyInfo memory _property,
         address owner,
-        address _paymentToken
+        address _paymentToken,
+        address _platformFeeRecipient
     ) ERC20(name, symbol) {
         require(_property.totalValue > 0, "Total value must be > 0");
         require(_property.totalValue >= TOKEN_PRICE, "Total value must be >= TOKEN_PRICE");
         require(owner != address(0), "Owner cannot be zero address");
         require(_paymentToken != address(0), "Payment token cannot be zero address");
+        require(_platformFeeRecipient != address(0), "Platform fee recipient cannot be zero address");
 
         _grantRole(DEFAULT_ADMIN_ROLE, owner);
         _grantRole(ADMIN_ROLE, owner);
         _grantRole(DISTRIBUTOR_ROLE, owner);
 
         paymentToken = IERC20(_paymentToken);
+        platformFeeRecipient = _platformFeeRecipient;
         property = _property;
 
         // Calculate max supply: totalValue / $50
@@ -103,28 +121,44 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
      * @notice Invest in property and receive property tokens
      * @dev Tokens are transferred from contract's pre-minted supply
      * @dev Each token represents $50 USD of property value
+     * @dev 2% platform fee is deducted from investment amount
      * @param amount Amount of payment token to invest (with payment token decimals)
      */
     function invest(uint256 amount) external onlyKYCPassed whenNotPaused {
-        require(amount > 0, "Investment amount must be > 0");
+        require(amount >= MIN_INVESTMENT, "Investment must be at least $50");
         require(property.isActive, "Property not active");
+
+        // Calculate platform fee (2%)
+        uint256 platformFee = (amount * PLATFORM_FEE_PERCENTAGE) / 100;
+        uint256 investmentAfterFee = amount - platformFee;
 
         // Calculate tokens: Each token = $50 USD
         // amount is in payment token units (6 decimals), TOKEN_PRICE is in payment token units (6 decimals)
         // Property tokens have 18 decimals
-        uint256 tokens = (amount * 1e18) / TOKEN_PRICE;
+        uint256 tokens = (investmentAfterFee * 1e18) / TOKEN_PRICE;
         require(tokens > 0, "Investment too small");
 
         uint256 availableTokens = balanceOf(address(this));
         require(availableTokens >= tokens, "Not enough tokens available");
 
         // Transfer payment token from investor to contract
-        require(paymentToken.transferFrom(msg.sender, address(this), amount), "Payment token transfer failed");
+        require(paymentToken.transferFrom(msg.sender, address(this), investmentAfterFee), "Payment token transfer failed");
+
+        // Transfer platform fee
+        require(paymentToken.transferFrom(msg.sender, platformFeeRecipient, platformFee), "Platform fee transfer failed");
+
+        // Track investor
+        if (!isInvestor[msg.sender]) {
+            investors.push(msg.sender);
+            isInvestor[msg.sender] = true;
+        }
+        investmentAmount[msg.sender] += amount;
 
         // Transfer property tokens from contract to investor
         _transfer(address(this), msg.sender, tokens);
 
         emit Invested(msg.sender, amount, tokens);
+        emit PlatformFeeCollected(platformFee, platformFeeRecipient);
     }
 
     // ===== Revenue Distribution (Core Feature) =====
@@ -149,7 +183,8 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
                 totalAmount: amount,
                 timestamp: block.timestamp,
                 totalSupplyAtDistribution: soldTokens,
-                description: description
+                description: description,
+                status: DistributionStatus.Distributed
             })
         );
 
@@ -205,6 +240,54 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
 
     function getSoldTokens() external view returns (uint256) {
         return totalSupply() - balanceOf(address(this));
+    }
+
+    /**
+     * @notice Get number of unique investors
+     */
+    function getInvestorCount() external view returns (uint256) {
+        return investors.length;
+    }
+
+    /**
+     * @notice Get list of all investors
+     */
+    function getInvestors() external view returns (address[] memory) {
+        return investors;
+    }
+
+    /**
+     * @notice Get funding percentage (0-100)
+     */
+    function getFundingPercentage() external view returns (uint256) {
+        uint256 sold = totalSupply() - balanceOf(address(this));
+        if (totalSupply() == 0) return 0;
+        return (sold * 100) / totalSupply();
+    }
+
+    /**
+     * @notice Calculate user's projected monthly income based on current holdings
+     * @param user Address of the user
+     * @return Projected monthly income in payment token units
+     */
+    function getUserProjectedMonthlyIncome(address user) external view returns (uint256) {
+        uint256 userTokens = balanceOf(user);
+        if (userTokens == 0) return 0;
+
+        uint256 soldTokens = totalSupply() - balanceOf(address(this));
+        if (soldTokens == 0) return 0;
+
+        // User's share of expected monthly income
+        return (property.expectedMonthlyIncome * userTokens) / soldTokens;
+    }
+
+    /**
+     * @notice Get total amount invested by a specific user
+     * @param user Address of the user
+     * @return Total USDC invested
+     */
+    function getUserInvestmentAmount(address user) external view returns (uint256) {
+        return investmentAmount[user];
     }
 
     // ===== Transfer Restrictions =====

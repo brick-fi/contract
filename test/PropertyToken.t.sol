@@ -11,6 +11,7 @@ contract PropertyTokenTest is Test {
     address public admin;
     address public investor1;
     address public investor2;
+    address public platformFee;
 
     PropertyToken.PropertyInfo public property;
 
@@ -18,6 +19,7 @@ contract PropertyTokenTest is Test {
         admin = address(this);
         investor1 = makeAddr("investor1");
         investor2 = makeAddr("investor2");
+        platformFee = makeAddr("platformFee");
 
         // Deploy Demo USDC
         usdc = new DemoUSDC();
@@ -33,8 +35,8 @@ contract PropertyTokenTest is Test {
             isActive: true
         });
 
-        // Deploy token (admin is the owner)
-        token = new PropertyToken("Test Property Token", "TPT", property, admin, address(usdc));
+        // Deploy token (admin is the owner, platformFee is the fee recipient)
+        token = new PropertyToken("Test Property Token", "TPT", property, admin, address(usdc), platformFee);
 
         // Mint USDC to test accounts
         usdc.mint(investor1, 100000 * 1e6); // 100,000 USDC

@@ -11,6 +11,7 @@ import "./PropertyToken.sol";
 contract PropertyFactory {
     // ===== State Variables =====
     address public immutable paymentToken;
+    address public platformFeeRecipient;
     PropertyToken[] public allProperties;
     mapping(address => PropertyToken[]) public propertiesByOwner;
     mapping(address => bool) public isPropertyToken;
@@ -26,9 +27,11 @@ contract PropertyFactory {
     );
 
     // ===== Constructor =====
-    constructor(address _paymentToken) {
+    constructor(address _paymentToken, address _platformFeeRecipient) {
         require(_paymentToken != address(0), "Payment token cannot be zero address");
+        require(_platformFeeRecipient != address(0), "Platform fee recipient cannot be zero address");
         paymentToken = _paymentToken;
+        platformFeeRecipient = _platformFeeRecipient;
     }
 
     // ===== Main Functions =====
@@ -44,7 +47,7 @@ contract PropertyFactory {
         returns (address propertyToken)
     {
         // Deploy new PropertyToken (msg.sender becomes the owner/admin)
-        PropertyToken newProperty = new PropertyToken(name, symbol, _property, msg.sender, paymentToken);
+        PropertyToken newProperty = new PropertyToken(name, symbol, _property, msg.sender, paymentToken, platformFeeRecipient);
 
         // Register the property
         allProperties.push(newProperty);
@@ -102,5 +105,89 @@ contract PropertyFactory {
     function getPropertyAt(uint256 index) external view returns (PropertyToken) {
         require(index < allProperties.length, "Index out of bounds");
         return allProperties[index];
+    }
+
+    /**
+     * @notice Get detailed info for all properties (gas-efficient for frontend)
+     * @dev Returns arrays of property details for easy frontend consumption
+     */
+    struct PropertyDetails {
+        address propertyAddress;
+        string name;
+        string location;
+        uint256 totalValue;
+        uint256 expectedMonthlyIncome;
+        string metadataURI;
+        bool isActive;
+        uint256 fundingPercentage;
+        uint256 investorCount;
+        uint256 maxSupply;
+        uint256 soldTokens;
+    }
+
+    function getAllPropertiesDetails() external view returns (PropertyDetails[] memory) {
+        PropertyDetails[] memory details = new PropertyDetails[](allProperties.length);
+
+        for (uint256 i = 0; i < allProperties.length; i++) {
+            PropertyToken token = allProperties[i];
+            (
+                uint256 propertyId,
+                string memory name,
+                string memory location,
+                uint256 totalValue,
+                uint256 expectedMonthlyIncome,
+                string memory metadataURI,
+                bool isActive
+            ) = token.property();
+
+            details[i] = PropertyDetails({
+                propertyAddress: address(token),
+                name: name,
+                location: location,
+                totalValue: totalValue,
+                expectedMonthlyIncome: expectedMonthlyIncome,
+                metadataURI: metadataURI,
+                isActive: isActive,
+                fundingPercentage: token.getFundingPercentage(),
+                investorCount: token.getInvestorCount(),
+                maxSupply: token.maxSupply(),
+                soldTokens: token.getSoldTokens()
+            });
+        }
+
+        return details;
+    }
+
+    /**
+     * @notice Get detailed info for a single property
+     * @param propertyAddress Address of the property token
+     */
+    function getPropertyDetails(address propertyAddress) external view returns (PropertyDetails memory) {
+        require(isPropertyToken[propertyAddress], "Not a valid property token");
+
+        PropertyToken token = PropertyToken(propertyAddress);
+        (
+            uint256 propertyId,
+            string memory name,
+            string memory location,
+            uint256 totalValue,
+            uint256 expectedMonthlyIncome,
+            string memory metadataURI,
+            bool isActive
+        ) = token.property();
+
+        return PropertyDetails({
+            propertyAddress: propertyAddress,
+            name: name,
+            location: location,
+            totalValue: totalValue,
+            expectedMonthlyIncome: expectedMonthlyIncome,
+            metadataURI: metadataURI,
+            isActive: isActive,
+            fundingPercentage: token.getFundingPercentage(),
+            investorCount: token.getInvestorCount(),
+            maxSupply: token.maxSupply(),
+            soldTokens: token.getSoldTokens()
+        });
     }
 }

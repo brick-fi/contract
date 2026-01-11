@@ -15,7 +15,8 @@ contract PropertyFactoryTest is Test {
 
     function setUp() public {
         usdc = new DemoUSDC();
-        factory = new PropertyFactory(address(usdc));
+        address platformFeeRecipient = makeAddr("platform");
+        factory = new PropertyFactory(address(usdc), platformFeeRecipient);
         seller1 = makeAddr("seller1");
         seller2 = makeAddr("seller2");
         investor = makeAddr("investor");
