@@ -37,21 +37,12 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     PropertyInfo public property;
     uint256 public maxSupply; // Auto-calculated: totalValue / TOKEN_PRICE
 
-    // ===== Compliance Gate =====
-    mapping(address => bool) public hasAcceptedTerms;
-
     // ===== Investor Tracking =====
     address[] private investors;
     mapping(address => bool) private isInvestor;
     mapping(address => uint256) public investmentAmount; // Total USDC invested by each investor
 
-    event TermsAccepted(address indexed user, uint256 timestamp);
     event PlatformFeeCollected(uint256 amount, address recipient);
-
-    modifier onlyKYCPassed() {
-        require(hasAcceptedTerms[msg.sender], "Must accept terms first");
-        _;
-    }
 
     // ===== Distribution =====
     enum DistributionStatus {
@@ -105,17 +96,6 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         _mint(address(this), maxSupply);
     }
 
-    // ===== Terms Acceptance =====
-    /**
-     * @notice Accept terms and conditions for compliance
-     * @dev User agreement required before investment
-     */
-    function acceptTerms() external {
-        require(!hasAcceptedTerms[msg.sender], "Already accepted");
-        hasAcceptedTerms[msg.sender] = true;
-        emit TermsAccepted(msg.sender, block.timestamp);
-    }
-
     // ===== Investment & Token Purchase =====
     /**
      * @notice Invest in property and receive property tokens
@@ -124,7 +104,7 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
      * @dev 2% platform fee is deducted from investment amount
      * @param amount Amount of payment token to invest (with payment token decimals)
      */
-    function invest(uint256 amount) external onlyKYCPassed whenNotPaused {
+    function invest(uint256 amount) external whenNotPaused {
         require(amount >= MIN_INVESTMENT, "Investment must be at least $50");
         require(property.isActive, "Property not active");
 
@@ -200,7 +180,7 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
      * @param distributionId ID of the distribution to claim from
      * @dev Gas-efficient: claim-based instead of automatic push
      */
-    function claimRevenue(uint256 distributionId) external onlyKYCPassed {
+    function claimRevenue(uint256 distributionId) external {
         require(distributionId < distributions.length, "Invalid distribution");
         require(!hasClaimed[msg.sender][distributionId], "Already claimed");
         require(balanceOf(msg.sender) > 0, "No tokens held");
@@ -296,14 +276,6 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
 
     // ===== Transfer Restrictions =====
     function _update(address from, address to, uint256 value) internal override whenNotPaused {
-        // Skip checks for minting/burning and contract address
-        if (from != address(0) && from != address(this)) {
-            require(hasAcceptedTerms[from], "Sender must accept terms");
-        }
-        if (to != address(0) && to != address(this)) {
-            require(hasAcceptedTerms[to], "Recipient must accept terms");
-        }
-
         super._update(from, to, value);
     }
 

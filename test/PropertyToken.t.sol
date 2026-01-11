@@ -44,27 +44,9 @@ contract PropertyTokenTest is Test {
         usdc.mint(admin, 100000 * 1e6);
     }
 
-    // ===== KYC Tests =====
-    function test_AcceptTerms() public {
-        vm.prank(investor1);
-        token.acceptTerms();
-
-        assertTrue(token.hasAcceptedTerms(investor1));
-    }
-
-    function test_CannotAcceptTermsTwice() public {
-        vm.startPrank(investor1);
-        token.acceptTerms();
-
-        vm.expectRevert("Already accepted");
-        token.acceptTerms();
-        vm.stopPrank();
-    }
-
     // ===== Investment Tests =====
-    function test_InvestWithKYC() public {
+    function test_Invest() public {
         vm.startPrank(investor1);
-        token.acceptTerms();
 
         uint256 investAmount = 100 * 1e6; // 100 USDC
         // With 2% platform fee: 100 * 0.98 = 98 USDC after fee
@@ -80,19 +62,8 @@ contract PropertyTokenTest is Test {
         vm.stopPrank();
     }
 
-    function test_CannotInvestWithoutKYC() public {
-        vm.startPrank(investor1);
-        uint256 investAmount = 50 * 1e6;
-        usdc.approve(address(token), investAmount);
-
-        vm.expectRevert("Must accept terms first");
-        token.invest(investAmount);
-        vm.stopPrank();
-    }
-
     function test_CannotInvestZero() public {
         vm.startPrank(investor1);
-        token.acceptTerms();
 
         vm.expectRevert("Investment must be at least $50");
         token.invest(0);
@@ -101,8 +72,6 @@ contract PropertyTokenTest is Test {
 
     function test_CannotInvestWithoutApproval() public {
         vm.startPrank(investor1);
-        token.acceptTerms();
-
         vm.expectRevert();
         token.invest(50 * 1e6);
         vm.stopPrank();
@@ -113,9 +82,7 @@ contract PropertyTokenTest is Test {
         token.pause();
 
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 50 * 1e6);
-
         vm.expectRevert();
         token.invest(50 * 1e6);
         vm.stopPrank();
@@ -125,7 +92,6 @@ contract PropertyTokenTest is Test {
     function test_DistributeRevenue() public {
         // Setup: investor1 invests
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 50 * 1e6);
         token.invest(50 * 1e6);
         vm.stopPrank();
@@ -143,13 +109,11 @@ contract PropertyTokenTest is Test {
     function test_ClaimRevenue() public {
         // Setup: Two investors
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 50 * 1e6);
         token.invest(50 * 1e6);
         vm.stopPrank();
 
         vm.startPrank(investor2);
-        token.acceptTerms();
         usdc.approve(address(token), 50 * 1e6);
         token.invest(50 * 1e6);
         vm.stopPrank();
@@ -173,7 +137,6 @@ contract PropertyTokenTest is Test {
     function test_CannotClaimTwice() public {
         // Setup
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 50 * 1e6);
         token.invest(50 * 1e6);
         vm.stopPrank();
@@ -197,7 +160,6 @@ contract PropertyTokenTest is Test {
     function test_GetPendingRevenue() public {
         // Setup
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 50 * 1e6);
         token.invest(50 * 1e6);
         vm.stopPrank();
@@ -214,31 +176,13 @@ contract PropertyTokenTest is Test {
         assertEq(pending, revenueAmount); // investor1 has 100% of tokens
     }
 
-    // ===== Transfer Restrictions =====
-    function test_CannotTransferWithoutKYC() public {
+    // ===== Transfer Tests =====
+    function test_CanTransfer() public {
         // Setup investor1 with tokens
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 50 * 1e6);
         token.invest(50 * 1e6);
         vm.stopPrank();
-
-        // Try to transfer to investor2 (no KYC)
-        vm.prank(investor1);
-        vm.expectRevert("Recipient must accept terms");
-        token.transfer(investor2, 100);
-    }
-
-    function test_CanTransferWithKYC() public {
-        // Setup both investors with KYC
-        vm.startPrank(investor1);
-        token.acceptTerms();
-        usdc.approve(address(token), 50 * 1e6);
-        token.invest(50 * 1e6);
-        vm.stopPrank();
-
-        vm.prank(investor2);
-        token.acceptTerms();
 
         // Transfer
         uint256 transferAmount = 100;
@@ -255,7 +199,6 @@ contract PropertyTokenTest is Test {
 
         // Cannot invest when paused
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 50 * 1e6);
         vm.expectRevert();
         token.invest(50 * 1e6);
@@ -270,7 +213,6 @@ contract PropertyTokenTest is Test {
 
         // Can invest after unpause
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 50 * 1e6);
         token.invest(50 * 1e6);
         vm.stopPrank();
@@ -298,7 +240,6 @@ contract PropertyTokenTest is Test {
     function test_WithdrawPaymentToken() public {
         // Investor invests
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 100 * 1e6);
         token.invest(100 * 1e6);
         vm.stopPrank();
@@ -329,7 +270,6 @@ contract PropertyTokenTest is Test {
 
         // After investment, available tokens decrease
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 100 * 1e6);
         token.invest(100 * 1e6);
         vm.stopPrank();
@@ -347,7 +287,6 @@ contract PropertyTokenTest is Test {
 
         // After investment, sold tokens increase
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), 100 * 1e6);
         token.invest(100 * 1e6);
         vm.stopPrank();
@@ -371,7 +310,6 @@ contract PropertyTokenTest is Test {
 
         // Buy all tokens
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), totalCost);
         token.invest(totalCost);
         vm.stopPrank();
@@ -382,7 +320,6 @@ contract PropertyTokenTest is Test {
 
         // Second investor cannot buy
         vm.startPrank(investor2);
-        token.acceptTerms();
         usdc.approve(address(token), 50 * 1e6);
         vm.expectRevert("Not enough tokens available");
         token.invest(50 * 1e6);
@@ -407,7 +344,6 @@ contract PropertyTokenTest is Test {
 
         // Investor1 buys 50% of tokens
         vm.startPrank(investor1);
-        token.acceptTerms();
         usdc.approve(address(token), invest1Amount);
         token.invest(invest1Amount);
         vm.stopPrank();
@@ -417,7 +353,6 @@ contract PropertyTokenTest is Test {
 
         // Investor2 buys 25% of tokens
         vm.startPrank(investor2);
-        token.acceptTerms();
         usdc.approve(address(token), invest2Amount);
         token.invest(invest2Amount);
         vm.stopPrank();

@@ -183,7 +183,6 @@ contract PropertyFactoryTest is Test {
 
         // Investor accepts terms and invests
         vm.startPrank(investor);
-        propertyToken.acceptTerms();
         usdc.approve(address(propertyToken), 100 * 1e6);
         propertyToken.invest(100 * 1e6);
         vm.stopPrank();
@@ -213,7 +212,6 @@ contract PropertyFactoryTest is Test {
 
         // Investor buys tokens
         vm.startPrank(investor);
-        propertyToken.acceptTerms();
         usdc.approve(address(propertyToken), 100 * 1e6);
         propertyToken.invest(100 * 1e6);
         vm.stopPrank();
