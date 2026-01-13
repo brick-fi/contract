@@ -3,27 +3,25 @@ pragma solidity ^0.8.23;
 
 import {Script, console} from "forge-std/Script.sol";
 import {PropertyFactory} from "../src/PropertyFactory.sol";
-import {DemoUSDC} from "../src/demo/USDC.sol";
 
 contract PropertyFactoryScript is Script {
     PropertyFactory public factory;
-    DemoUSDC public paymentToken;
 
     function setUp() public {}
 
     function run() public {
+        // Get USDC address from environment variable
+        address usdcAddress = vm.envAddress("USDC_ADDRESS");
+        require(usdcAddress != address(0), "USDC_ADDRESS not set in environment");
+
         vm.startBroadcast();
 
-        // Deploy demo USDC first
-        paymentToken = new DemoUSDC();
-        console.log("Demo USDC deployed to:", address(paymentToken));
-
         // Deploy PropertyFactory (msg.sender is platform fee recipient)
-        factory = new PropertyFactory(address(paymentToken), msg.sender);
+        factory = new PropertyFactory(usdcAddress, msg.sender);
 
         console.log("PropertyFactory deployed to:", address(factory));
-        console.log("Payment Token:", address(paymentToken));
-        console.log("Deployer:", msg.sender);
+        console.log("Payment Token (USDC):", usdcAddress);
+        console.log("Platform Fee Recipient:", msg.sender);
         console.log("");
         console.log("Property owners can now create properties by calling:");
         console.log("factory.createProperty(name, symbol, propertyInfo)");
