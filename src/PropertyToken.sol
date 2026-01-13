@@ -252,16 +252,17 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
      * @notice Calculate user's projected monthly income based on current holdings
      * @param user Address of the user
      * @return Projected monthly income in payment token units
+     * @dev Uses maxSupply (total issued tokens) not soldTokens for calculation
+     * @dev Each token has a fixed monthly income regardless of how many are sold
      */
     function getUserProjectedMonthlyIncome(address user) external view returns (uint256) {
         uint256 userTokens = balanceOf(user);
         if (userTokens == 0) return 0;
+        if (maxSupply == 0) return 0;
 
-        uint256 soldTokens = totalSupply() - balanceOf(address(this));
-        if (soldTokens == 0) return 0;
-
-        // User's share of expected monthly income
-        return (property.expectedMonthlyIncome * userTokens) / soldTokens;
+        // User's share based on total supply (not sold tokens)
+        // Each token represents a fixed portion of the total monthly income
+        return (property.expectedMonthlyIncome * userTokens) / maxSupply;
     }
 
     /**
