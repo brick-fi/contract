@@ -30,7 +30,6 @@ contract PropertyFactoryTest is Test {
     // ===== Property Creation Tests =====
     function test_CreateProperty() public {
         PropertyToken.PropertyInfo memory property = PropertyToken.PropertyInfo({
-            propertyId: 1,
             name: "Test Property",
             location: "Test Location",
             totalValue: 100000 * 1e6,
@@ -48,7 +47,6 @@ contract PropertyFactoryTest is Test {
 
     function test_CreatePropertyEmitsEvent() public {
         PropertyToken.PropertyInfo memory property = PropertyToken.PropertyInfo({
-            propertyId: 1,
             name: "Test Property",
             location: "Test Location",
             totalValue: 100000 * 1e6,
@@ -59,13 +57,12 @@ contract PropertyFactoryTest is Test {
 
         vm.prank(seller1);
         vm.expectEmit(false, true, false, false);
-        emit PropertyFactory.PropertyCreated(address(0), seller1, "Test Token", "TEST", 1, 100000 * 1e6);
+        emit PropertyFactory.PropertyCreated(address(0), seller1, "Test Token", "TEST", 100000 * 1e6);
         factory.createProperty("Test Token", "TEST", property);
     }
 
     function test_CreatorIsAdmin() public {
         PropertyToken.PropertyInfo memory property = PropertyToken.PropertyInfo({
-            propertyId: 1,
             name: "Test Property",
             location: "Test Location",
             totalValue: 100000 * 1e6,
@@ -86,7 +83,6 @@ contract PropertyFactoryTest is Test {
 
     function test_MultiplePropertiesCreation() public {
         PropertyToken.PropertyInfo memory property1 = PropertyToken.PropertyInfo({
-            propertyId: 1,
             name: "Property 1",
             location: "Location 1",
             totalValue: 100000 * 1e6,
@@ -96,7 +92,6 @@ contract PropertyFactoryTest is Test {
         });
 
         PropertyToken.PropertyInfo memory property2 = PropertyToken.PropertyInfo({
-            propertyId: 2,
             name: "Property 2",
             location: "Location 2",
             totalValue: 200000 * 1e6,
@@ -167,7 +162,6 @@ contract PropertyFactoryTest is Test {
     // ===== Integration Tests =====
     function test_InvestorCanInvestInCreatedProperty() public {
         PropertyToken.PropertyInfo memory property = PropertyToken.PropertyInfo({
-            propertyId: 1,
             name: "Test Property",
             location: "Test Location",
             totalValue: 100000 * 1e6,
@@ -196,7 +190,6 @@ contract PropertyFactoryTest is Test {
 
     function test_SellerCanDistributeRevenue() public {
         PropertyToken.PropertyInfo memory property = PropertyToken.PropertyInfo({
-            propertyId: 1,
             name: "Test Property",
             location: "Test Location",
             totalValue: 100000 * 1e6,
@@ -227,7 +220,6 @@ contract PropertyFactoryTest is Test {
 
     function test_OnlySellerCanDistribute() public {
         PropertyToken.PropertyInfo memory property = PropertyToken.PropertyInfo({
-            propertyId: 1,
             name: "Test Property",
             location: "Test Location",
             totalValue: 100000 * 1e6,
@@ -252,7 +244,6 @@ contract PropertyFactoryTest is Test {
     // ===== Helper Functions =====
     function _createTestProperty(address seller, uint256 propertyId) internal returns (address) {
         PropertyToken.PropertyInfo memory property = PropertyToken.PropertyInfo({
-            propertyId: propertyId,
             name: "Test Property",
             location: "Test Location",
             totalValue: 100000 * 1e6,

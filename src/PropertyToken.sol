@@ -25,12 +25,11 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
 
     // ===== Property Metadata =====
     struct PropertyInfo {
-        uint256 propertyId;
         string name;
         string location;
         uint256 totalValue;
         uint256 expectedMonthlyIncome;
-        string metadataURI; // 3D/2D visual URL
+        string metadataURI;
         bool isActive;
     }
 

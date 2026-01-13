@@ -26,7 +26,6 @@ contract PropertyTokenTest is Test {
 
         // Setup property metadata
         property = PropertyToken.PropertyInfo({
-            propertyId: 1,
             name: "Test Property",
             location: "Test Location",
             totalValue: 100000 * 1e6, // $100,000 property value in USDC (6 decimals)
@@ -225,7 +224,7 @@ contract PropertyTokenTest is Test {
         vm.prank(admin);
         token.updatePropertyMetadata(newURI);
 
-        (,,,,, string memory metadataURI,) = token.property();
+        (,,,, string memory metadataURI,) = token.property();
         assertEq(metadataURI, newURI);
     }
 
@@ -233,7 +232,7 @@ contract PropertyTokenTest is Test {
         vm.prank(admin);
         token.setPropertyActive(false);
 
-        (,,,,,, bool isActive) = token.property();
+        (,,,,, bool isActive) = token.property();
         assertFalse(isActive);
     }
 

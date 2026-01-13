@@ -18,12 +18,7 @@ contract PropertyFactory {
 
     // ===== Events =====
     event PropertyCreated(
-        address indexed propertyToken,
-        address indexed owner,
-        string name,
-        string symbol,
-        uint256 propertyId,
-        uint256 totalValue
+        address indexed propertyToken, address indexed owner, string name, string symbol, uint256 totalValue
     );
 
     // ===== Constructor =====
@@ -55,7 +50,7 @@ contract PropertyFactory {
         propertiesByOwner[msg.sender].push(newProperty);
         isPropertyToken[address(newProperty)] = true;
 
-        emit PropertyCreated(address(newProperty), msg.sender, name, symbol, _property.propertyId, _property.totalValue);
+        emit PropertyCreated(address(newProperty), msg.sender, name, symbol, _property.totalValue);
 
         return address(newProperty);
     }
@@ -132,7 +127,6 @@ contract PropertyFactory {
         for (uint256 i = 0; i < allProperties.length; i++) {
             PropertyToken token = allProperties[i];
             (
-                uint256 propertyId,
                 string memory name,
                 string memory location,
                 uint256 totalValue,
@@ -168,7 +162,6 @@ contract PropertyFactory {
 
         PropertyToken token = PropertyToken(propertyAddress);
         (
-            uint256 propertyId,
             string memory name,
             string memory location,
             uint256 totalValue,
