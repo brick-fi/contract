@@ -27,6 +27,34 @@ Foundry consists of:
 - **Bridge**: https://app.mantle.xyz/bridge?network=sepolia
 - **Wrapped MNT**: 0x19f5557E23e9914A18239990f6C70D68FDF0deD5
 
+## Deployed Contracts
+
+### Mantle Sepolia Testnet
+
+- **DemoUSDC**: [`0xf6c6D352545Eb7316fD3034232ff7eF635325D6F`](https://sepolia.mantlescan.xyz/address/0xf6c6D352545Eb7316fD3034232ff7eF635325D6F)
+- **PropertyFactory**: [`0xF569Ae2b5099C0E66Fe0edf9a9135BC69052D937`](https://sepolia.mantlescan.xyz/address/0xF569Ae2b5099C0E66Fe0edf9a9135BC69052D937)
+
+### Get Test USDC
+
+You can get test USDC on Mantle Sepolia testnet using one of these methods:
+
+**Method 1: Use the Faucet Function (Easiest)**
+```shell
+cast send 0xf6c6D352545Eb7316fD3034232ff7eF635325D6F "faucet()" --rpc-url mantle_sepolia --private-key $PRIVATE_KEY --legacy
+```
+This will mint 1,000 USDC (6 decimals) to your wallet.
+
+**Method 2: Mint Custom Amount**
+```shell
+# Mint 10,000 USDC (6 decimals = 10000 * 1e6)
+cast send 0xf6c6D352545Eb7316fD3034232ff7eF635325D6F "mint(address,uint256)" <YOUR_ADDRESS> 10000000000 --rpc-url mantle_sepolia --private-key $PRIVATE_KEY --legacy
+```
+
+**Check Your Balance:**
+```shell
+cast call 0xf6c6D352545Eb7316fD3034232ff7eF635325D6F "balanceOf(address)" <YOUR_ADDRESS> --rpc-url mantle_sepolia
+```
+
 ## Setup
 
 1. Install dependencies:
