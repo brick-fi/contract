@@ -16,6 +16,13 @@ contract DemoUSDC is ERC20, Ownable {
     }
 
     /**
+     * @notice Override decimals to match real USDC (6 decimals instead of 18)
+     */
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
+    /**
      * @notice Mint tokens to any address (for testing only)
      * @param to Address to receive tokens
      * @param amount Amount to mint (in token units with decimals)
