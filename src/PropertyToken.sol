@@ -150,22 +150,26 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
      * @param amount Amount of revenue to distribute (in payment token units)
      * @param description Description of distribution (e.g., "January 2026 rental income")
      * @dev Creates distribution record that users can claim from
+     * @dev Uses maxSupply for calculation - each token gets fixed amount regardless of sales
+     * @dev Unsold tokens' share remains in contract
      */
     function distributeRevenue(uint256 amount, string calldata description) external onlyRole(DISTRIBUTOR_ROLE) {
         require(amount > 0, "Amount must be > 0");
 
-        // Only count tokens held by investors (exclude unsold tokens in contract)
+        // Check that at least some tokens are sold
         uint256 soldTokens = totalSupply() - balanceOf(address(this));
         require(soldTokens > 0, "No tokens sold yet");
 
         // Transfer payment token from distributor to contract
         require(paymentToken.transferFrom(msg.sender, address(this), amount), "Payment token transfer failed");
 
+        // Use maxSupply for distribution calculation (not soldTokens)
+        // This ensures each token has a fixed revenue share
         distributions.push(
             Distribution({
                 totalAmount: amount,
                 timestamp: block.timestamp,
-                totalSupplyAtDistribution: soldTokens,
+                totalSupplyAtDistribution: maxSupply,
                 description: description,
                 status: DistributionStatus.Distributed
             })
@@ -178,6 +182,8 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
      * @notice Claim revenue from a specific distribution
      * @param distributionId ID of the distribution to claim from
      * @dev Gas-efficient: claim-based instead of automatic push
+     * @dev Each token receives fixed share based on maxSupply
+     * @dev Example: 100 tokens total, user holds 10 tokens, $10,000 distributed = user gets $1,000
      */
     function claimRevenue(uint256 distributionId) external {
         require(distributionId < distributions.length, "Invalid distribution");
@@ -186,7 +192,8 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
 
         Distribution memory dist = distributions[distributionId];
 
-        // Calculate user's share based on token balance
+        // Calculate user's share based on token balance and maxSupply
+        // dist.totalSupplyAtDistribution is now maxSupply (not soldTokens)
         uint256 userShare = (dist.totalAmount * balanceOf(msg.sender)) / dist.totalSupplyAtDistribution;
         require(userShare > 0, "No revenue to claim");
 

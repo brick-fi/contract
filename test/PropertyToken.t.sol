@@ -129,8 +129,12 @@ contract PropertyTokenTest is Test {
         vm.prank(investor1);
         token.claimRevenue(0);
 
-        // Should receive half (100 USDC) since both investors have equal tokens
-        assertEq(usdc.balanceOf(investor1) - balanceBefore, 100 * 1e6);
+        // Calculate expected share based on maxSupply (not soldTokens)
+        // investor1 has 0.98 tokens (after 2% fee), maxSupply is 2000 tokens
+        // Expected: (200 * 0.98) / 2000 = 0.098 USDC
+        uint256 investor1Tokens = token.balanceOf(investor1);
+        uint256 expectedShare = (revenueAmount * investor1Tokens) / token.maxSupply();
+        assertEq(usdc.balanceOf(investor1) - balanceBefore, expectedShare);
     }
 
     function test_CannotClaimTwice() public {
@@ -170,9 +174,13 @@ contract PropertyTokenTest is Test {
         token.distributeRevenue(revenueAmount, "Test");
         vm.stopPrank();
 
-        // Check pending
+        // Check pending - calculated based on maxSupply
+        // investor1 has 0.98 tokens (after 2% fee), maxSupply is 2000 tokens
+        // Expected: (1000 * 0.98) / 2000 = 0.49 USDC
+        uint256 investor1Tokens = token.balanceOf(investor1);
+        uint256 expectedPending = (revenueAmount * investor1Tokens) / token.maxSupply();
         uint256 pending = token.getPendingRevenue(investor1, 0);
-        assertEq(pending, revenueAmount); // investor1 has 100% of tokens
+        assertEq(pending, expectedPending);
     }
 
     // ===== Transfer Tests =====
