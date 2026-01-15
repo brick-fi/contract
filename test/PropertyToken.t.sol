@@ -90,49 +90,67 @@ contract PropertyTokenTest is Test {
 
     // ===== Distribution Tests =====
     function test_DistributeRevenue() public {
-        // Setup: investor1 invests
-        vm.startPrank(investor1);
-        usdc.approve(address(token), 51 * 1e6); // 51 to invest 50 after fee
-        token.invest(51 * 1e6);
-        vm.stopPrank();
-
-        // Admin distributes revenue
-        uint256 revenueAmount = 100 * 1e6; // 100 USDC
-        vm.startPrank(admin);
-        usdc.approve(address(token), revenueAmount);
-        token.distributeRevenue(revenueAmount, "January revenue");
-        vm.stopPrank();
-
-        assertEq(token.getDistributionCount(), 1);
-    }
-
-    function test_ClaimRevenue() public {
-        // Setup: Two investors
+        // Setup: investor1 invests (1 token = 50 USDC worth)
         vm.startPrank(investor1);
         usdc.approve(address(token), 51 * 1e6);
         token.invest(51 * 1e6);
+        vm.stopPrank();
+
+        // Admin expects to distribute 100 USDC for all tokens (maxSupply = 2000)
+        // But only 1 token sold out of 2000
+        // So actualAmount = 100 * (1 / 2000) = 0.05 USDC
+        // Admin only pays 0.05 USDC, not 100 USDC
+        uint256 expectedAmount = 100 * 1e6; // 100 USDC (expected for all tokens)
+        uint256 soldTokens = token.getSoldTokens(); // 1 token
+        uint256 maxSupply = token.maxSupply(); // 2000 tokens
+        uint256 actualAmount = (expectedAmount * soldTokens) / maxSupply; // 50,000 USDC (0.05)
+
+        uint256 adminBalanceBefore = usdc.balanceOf(admin);
+        vm.startPrank(admin);
+        usdc.approve(address(token), actualAmount);
+        token.distributeRevenue(expectedAmount, "January revenue");
+        vm.stopPrank();
+
+        // Verify distribution was created
+        assertEq(token.getDistributionCount(), 1);
+        // Verify admin only paid actual amount, not expected amount
+        assertEq(adminBalanceBefore - usdc.balanceOf(admin), actualAmount);
+    }
+
+    function test_ClaimRevenue() public {
+        // Setup: Two investors (2 tokens sold)
+        vm.startPrank(investor1);
+        usdc.approve(address(token), 51 * 1e6);
+        token.invest(51 * 1e6); // 1 token
         vm.stopPrank();
 
         vm.startPrank(investor2);
         usdc.approve(address(token), 51 * 1e6);
-        token.invest(51 * 1e6);
+        token.invest(51 * 1e6); // 1 token
         vm.stopPrank();
 
-        // Distribute revenue
-        uint256 revenueAmount = 200 * 1e6; // 200 USDC
+        // Distribute revenue: expected 10,000 USDC for all tokens
+        // Sold: 2 tokens out of 2000 maxSupply = 0.1%
+        // Actual amount admin transfers: 10,000 * (2/2000) = 10 USDC
+        uint256 expectedAmount = 10000 * 1e6; // 10,000 USDC expected for all tokens
+        uint256 soldTokens = token.getSoldTokens(); // 2 tokens
+        uint256 maxSupply = token.maxSupply(); // 2000 tokens
+        uint256 actualAmount = (expectedAmount * soldTokens) / maxSupply; // 10 USDC
+
         vm.startPrank(admin);
-        usdc.approve(address(token), revenueAmount);
-        token.distributeRevenue(revenueAmount, "Test revenue");
+        usdc.approve(address(token), actualAmount);
+        token.distributeRevenue(expectedAmount, "Test revenue");
         vm.stopPrank();
 
-        // Investor1 claims
+        // Investor1 claims (1 out of 2 sold tokens)
         uint256 balanceBefore = usdc.balanceOf(investor1);
         vm.prank(investor1);
         token.claimRevenue(0);
 
-        // Calculate expected share based on maxSupply
+        // Distribution is calculated as: (actualAmount * userTokens) / soldTokens
+        // = (10 * 1) / 2 = 5 USDC per investor
         uint256 investor1Tokens = token.balanceOf(investor1);
-        uint256 expectedShare = (revenueAmount * investor1Tokens) / token.maxSupply();
+        uint256 expectedShare = (actualAmount * investor1Tokens) / soldTokens;
         assertEq(usdc.balanceOf(investor1) - balanceBefore, expectedShare);
     }
 
@@ -163,19 +181,26 @@ contract PropertyTokenTest is Test {
         // Setup
         vm.startPrank(investor1);
         usdc.approve(address(token), 51 * 1e6);
-        token.invest(51 * 1e6);
+        token.invest(51 * 1e6); // 1 token
         vm.stopPrank();
 
-        // Distribute
-        uint256 revenueAmount = 1000 * 1e6; // 1000 USDC
+        // Distribute: expected 10,000 USDC for all tokens
+        // Sold: 1 token out of 2000 = 0.05%
+        // Actual amount admin transfers: 10,000 * (1/2000) = 5 USDC
+        uint256 expectedAmount = 10000 * 1e6;
+        uint256 soldTokens = token.getSoldTokens(); // 1
+        uint256 maxSupply = token.maxSupply(); // 2000
+        uint256 actualAmount = (expectedAmount * soldTokens) / maxSupply; // 5 USDC
+
         vm.startPrank(admin);
-        usdc.approve(address(token), revenueAmount);
-        token.distributeRevenue(revenueAmount, "Test");
+        usdc.approve(address(token), actualAmount);
+        token.distributeRevenue(expectedAmount, "Test");
         vm.stopPrank();
 
-        // Check pending - calculated based on maxSupply
+        // Pending should be: (actualAmount * userTokens) / soldTokens
+        // = (5 * 1) / 1 = 5 USDC (investor1 has all sold tokens)
         uint256 investor1Tokens = token.balanceOf(investor1);
-        uint256 expectedPending = (revenueAmount * investor1Tokens) / token.maxSupply();
+        uint256 expectedPending = (actualAmount * investor1Tokens) / soldTokens;
         uint256 pending = token.getPendingRevenue(investor1, 0);
         assertEq(pending, expectedPending);
     }

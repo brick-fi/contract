@@ -148,35 +148,44 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     // ===== Revenue Distribution (Core Feature) =====
     /**
      * @notice Admin triggers revenue distribution
-     * @param amount Amount of revenue to distribute (in payment token units)
+     * @param expectedAmount Expected total amount for all tokens (in payment token units)
+     * @dev Admin inputs expected amount, but only pays for sold tokens
+     * @dev Example: expectedAmount = 10,000, sold = 2 tokens, maxSupply = 100
+     *      → actualAmount = 10,000 * (2 / 100) = 200 USDC
+     *      → Admin only transfers 200 USDC
+     *      → Each token owner gets equal share of actual amount
      * @param description Description of distribution (e.g., "January 2026 rental income")
-     * @dev Creates distribution record that users can claim from
-     * @dev Uses maxSupply for calculation - each token gets fixed amount regardless of sales
-     * @dev Unsold tokens' share remains in contract
      */
-    function distributeRevenue(uint256 amount, string calldata description) external onlyRole(DISTRIBUTOR_ROLE) {
-        require(amount > 0, "Amount must be > 0");
+    function distributeRevenue(uint256 expectedAmount, string calldata description)
+        external
+        onlyRole(DISTRIBUTOR_ROLE)
+    {
+        require(expectedAmount > 0, "Amount must be > 0");
 
         // Check that at least some tokens are sold
         uint256 soldTokens = totalSupply() - balanceOf(address(this));
         require(soldTokens > 0, "No tokens sold yet");
 
-        // Transfer payment token from distributor to contract
-        require(paymentToken.transferFrom(msg.sender, address(this), amount), "Payment token transfer failed");
+        // Calculate actual amount to transfer based on sold token percentage
+        // actualAmount = expectedAmount * (soldTokens / maxSupply)
+        uint256 actualAmount = (expectedAmount * soldTokens) / maxSupply;
+        require(actualAmount > 0, "Distribution amount too small");
 
-        // Use maxSupply for distribution calculation (not soldTokens)
-        // This ensures each token has a fixed revenue share
+        // Transfer only the actual amount from distributor to contract
+        require(paymentToken.transferFrom(msg.sender, address(this), actualAmount), "Payment token transfer failed");
+
+        // Store distribution record with actual amount and sold tokens basis
         distributions.push(
             Distribution({
-                totalAmount: amount,
+                totalAmount: actualAmount,
                 timestamp: block.timestamp,
-                totalSupplyAtDistribution: maxSupply,
+                totalSupplyAtDistribution: soldTokens,
                 description: description,
                 status: DistributionStatus.Distributed
             })
         );
 
-        emit RevenueDistributed(distributions.length - 1, amount, description);
+        emit RevenueDistributed(distributions.length - 1, actualAmount, description);
     }
 
     /**
