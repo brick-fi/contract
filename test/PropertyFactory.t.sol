@@ -175,15 +175,17 @@ contract PropertyFactoryTest is Test {
 
         PropertyToken propertyToken = PropertyToken(propertyTokenAddr);
 
-        // Investor accepts terms and invests
+        // Investor accepts terms and invests (102 to invest 100 after 2% fee)
         vm.startPrank(investor);
-        usdc.approve(address(propertyToken), 100 * 1e6);
-        propertyToken.invest(100 * 1e6);
+        usdc.approve(address(propertyToken), 102 * 1e6);
+        propertyToken.invest(102 * 1e6);
         vm.stopPrank();
 
-        // Verify investor received tokens (after 2% platform fee: 98 USDC)
-        uint256 platformFee = (100 * 1e6 * propertyToken.PLATFORM_FEE_PERCENTAGE()) / 100;
-        uint256 amountAfterFee = 100 * 1e6 - platformFee;
+        // Verify investor received tokens (after 2% platform fee: 100 USDC)
+        uint256 totalAmount = 102 * 1e6;
+        uint256 platformFee =
+            (totalAmount * propertyToken.PLATFORM_FEE_PERCENTAGE()) / (100 + propertyToken.PLATFORM_FEE_PERCENTAGE());
+        uint256 amountAfterFee = totalAmount - platformFee;
         uint256 expectedTokens = (amountAfterFee * 1e18) / propertyToken.TOKEN_PRICE();
         assertEq(propertyToken.balanceOf(investor), expectedTokens);
     }

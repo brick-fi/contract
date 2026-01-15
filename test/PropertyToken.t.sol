@@ -11,7 +11,7 @@ contract PropertyTokenTest is Test {
     address public admin;
     address public investor1;
     address public investor2;
-    address public platformFee;
+    address public feeRecipient;
 
     PropertyToken.PropertyInfo public property;
 
@@ -19,7 +19,7 @@ contract PropertyTokenTest is Test {
         admin = address(this);
         investor1 = makeAddr("investor1");
         investor2 = makeAddr("investor2");
-        platformFee = makeAddr("platformFee");
+        feeRecipient = makeAddr("feeRecipient");
 
         // Deploy Demo USDC
         usdc = new DemoUSDC();
@@ -34,8 +34,8 @@ contract PropertyTokenTest is Test {
             isActive: true
         });
 
-        // Deploy token (admin is the owner, platformFee is the fee recipient)
-        token = new PropertyToken("Test Property Token", "TPT", property, admin, address(usdc), platformFee);
+        // Deploy token (admin is the owner, feeRecipient is the fee recipient)
+        token = new PropertyToken("Test Property Token", "TPT", property, admin, address(usdc), feeRecipient);
 
         // Mint USDC to test accounts
         usdc.mint(investor1, 100000 * 1e6); // 100,000 USDC
@@ -47,15 +47,16 @@ contract PropertyTokenTest is Test {
     function test_Invest() public {
         vm.startPrank(investor1);
 
-        uint256 investAmount = 100 * 1e6; // 100 USDC
-        // With 2% platform fee: 100 * 0.98 = 98 USDC after fee
-        // tokens = (98 * 1e6 * 1e18) / (50 * 1e6) = 1.96 * 1e18 tokens
-        uint256 platformFee = (investAmount * token.PLATFORM_FEE_PERCENTAGE()) / 100;
-        uint256 amountAfterFee = investAmount - platformFee;
+        uint256 totalAmount = 102 * 1e6; // 102 USDC (100 USDC investment + 2% fee)
+        // With 2% platform fee: 102 * 2 / 102 = 2 USDC fee
+        // amountAfterFee = 102 - 2 = 100 USDC for investment
+        // tokens = (100 * 1e6 * 1e18) / (50 * 1e6) = 2 * 1e18 tokens
+        uint256 platformFee = (totalAmount * token.PLATFORM_FEE_PERCENTAGE()) / (100 + token.PLATFORM_FEE_PERCENTAGE());
+        uint256 amountAfterFee = totalAmount - platformFee;
         uint256 expectedTokens = (amountAfterFee * 1e18) / token.TOKEN_PRICE();
 
-        usdc.approve(address(token), investAmount);
-        token.invest(investAmount);
+        usdc.approve(address(token), totalAmount);
+        token.invest(totalAmount);
 
         assertEq(token.balanceOf(investor1), expectedTokens);
         vm.stopPrank();
@@ -72,7 +73,7 @@ contract PropertyTokenTest is Test {
     function test_CannotInvestWithoutApproval() public {
         vm.startPrank(investor1);
         vm.expectRevert();
-        token.invest(50 * 1e6);
+        token.invest(51 * 1e6); // 51 to send 50 after fee
         vm.stopPrank();
     }
 
@@ -81,9 +82,9 @@ contract PropertyTokenTest is Test {
         token.pause();
 
         vm.startPrank(investor1);
-        usdc.approve(address(token), 50 * 1e6);
+        usdc.approve(address(token), 51 * 1e6);
         vm.expectRevert();
-        token.invest(50 * 1e6);
+        token.invest(51 * 1e6);
         vm.stopPrank();
     }
 
@@ -91,8 +92,8 @@ contract PropertyTokenTest is Test {
     function test_DistributeRevenue() public {
         // Setup: investor1 invests
         vm.startPrank(investor1);
-        usdc.approve(address(token), 50 * 1e6);
-        token.invest(50 * 1e6);
+        usdc.approve(address(token), 51 * 1e6); // 51 to invest 50 after fee
+        token.invest(51 * 1e6);
         vm.stopPrank();
 
         // Admin distributes revenue
@@ -108,13 +109,13 @@ contract PropertyTokenTest is Test {
     function test_ClaimRevenue() public {
         // Setup: Two investors
         vm.startPrank(investor1);
-        usdc.approve(address(token), 50 * 1e6);
-        token.invest(50 * 1e6);
+        usdc.approve(address(token), 51 * 1e6);
+        token.invest(51 * 1e6);
         vm.stopPrank();
 
         vm.startPrank(investor2);
-        usdc.approve(address(token), 50 * 1e6);
-        token.invest(50 * 1e6);
+        usdc.approve(address(token), 51 * 1e6);
+        token.invest(51 * 1e6);
         vm.stopPrank();
 
         // Distribute revenue
@@ -129,9 +130,7 @@ contract PropertyTokenTest is Test {
         vm.prank(investor1);
         token.claimRevenue(0);
 
-        // Calculate expected share based on maxSupply (not soldTokens)
-        // investor1 has 0.98 tokens (after 2% fee), maxSupply is 2000 tokens
-        // Expected: (200 * 0.98) / 2000 = 0.098 USDC
+        // Calculate expected share based on maxSupply
         uint256 investor1Tokens = token.balanceOf(investor1);
         uint256 expectedShare = (revenueAmount * investor1Tokens) / token.maxSupply();
         assertEq(usdc.balanceOf(investor1) - balanceBefore, expectedShare);
@@ -140,8 +139,8 @@ contract PropertyTokenTest is Test {
     function test_CannotClaimTwice() public {
         // Setup
         vm.startPrank(investor1);
-        usdc.approve(address(token), 50 * 1e6);
-        token.invest(50 * 1e6);
+        usdc.approve(address(token), 51 * 1e6);
+        token.invest(51 * 1e6);
         vm.stopPrank();
 
         // Distribute
@@ -163,8 +162,8 @@ contract PropertyTokenTest is Test {
     function test_GetPendingRevenue() public {
         // Setup
         vm.startPrank(investor1);
-        usdc.approve(address(token), 50 * 1e6);
-        token.invest(50 * 1e6);
+        usdc.approve(address(token), 51 * 1e6);
+        token.invest(51 * 1e6);
         vm.stopPrank();
 
         // Distribute
@@ -175,8 +174,6 @@ contract PropertyTokenTest is Test {
         vm.stopPrank();
 
         // Check pending - calculated based on maxSupply
-        // investor1 has 0.98 tokens (after 2% fee), maxSupply is 2000 tokens
-        // Expected: (1000 * 0.98) / 2000 = 0.49 USDC
         uint256 investor1Tokens = token.balanceOf(investor1);
         uint256 expectedPending = (revenueAmount * investor1Tokens) / token.maxSupply();
         uint256 pending = token.getPendingRevenue(investor1, 0);
@@ -187,8 +184,8 @@ contract PropertyTokenTest is Test {
     function test_CanTransfer() public {
         // Setup investor1 with tokens
         vm.startPrank(investor1);
-        usdc.approve(address(token), 50 * 1e6);
-        token.invest(50 * 1e6);
+        usdc.approve(address(token), 51 * 1e6);
+        token.invest(51 * 1e6);
         vm.stopPrank();
 
         // Transfer
@@ -206,9 +203,9 @@ contract PropertyTokenTest is Test {
 
         // Cannot invest when paused
         vm.startPrank(investor1);
-        usdc.approve(address(token), 50 * 1e6);
+        usdc.approve(address(token), 51 * 1e6);
         vm.expectRevert();
-        token.invest(50 * 1e6);
+        token.invest(51 * 1e6);
         vm.stopPrank();
     }
 
@@ -220,8 +217,8 @@ contract PropertyTokenTest is Test {
 
         // Can invest after unpause
         vm.startPrank(investor1);
-        usdc.approve(address(token), 50 * 1e6);
-        token.invest(50 * 1e6);
+        usdc.approve(address(token), 51 * 1e6);
+        token.invest(51 * 1e6);
         vm.stopPrank();
 
         assertTrue(token.balanceOf(investor1) > 0);
@@ -245,15 +242,16 @@ contract PropertyTokenTest is Test {
     }
 
     function test_WithdrawPaymentToken() public {
-        // Investor invests
+        // Investor invests 102 USDC (100 after fee)
         vm.startPrank(investor1);
-        usdc.approve(address(token), 100 * 1e6);
-        token.invest(100 * 1e6);
+        usdc.approve(address(token), 102 * 1e6);
+        token.invest(102 * 1e6);
         vm.stopPrank();
 
-        // Admin withdraws (only gets after-fee amount: 98 USDC)
-        uint256 platformFee = (100 * 1e6 * token.PLATFORM_FEE_PERCENTAGE()) / 100;
-        uint256 expectedAmount = 100 * 1e6 - platformFee;
+        // Admin withdraws (should get 100 USDC after fee)
+        uint256 totalAmount = 102 * 1e6;
+        uint256 platformFee = (totalAmount * token.PLATFORM_FEE_PERCENTAGE()) / (100 + token.PLATFORM_FEE_PERCENTAGE());
+        uint256 expectedAmount = totalAmount - platformFee;
         uint256 adminBalanceBefore = usdc.balanceOf(admin);
         vm.prank(admin);
         token.withdrawPaymentToken();
@@ -262,7 +260,7 @@ contract PropertyTokenTest is Test {
     }
 
     // ===== Token Supply Tests =====
-    function test_PreMintedSupply() public {
+    function test_PreMintedSupply() public view {
         // Contract should have all tokens pre-minted
         // maxSupply = (totalValue * 1e18) / TOKEN_PRICE = (100,000 * 1e6 * 1e18) / (50 * 1e6) = 2,000 * 1e18 tokens
         uint256 expectedMaxSupply = (property.totalValue * 1e18) / token.TOKEN_PRICE();
@@ -277,13 +275,15 @@ contract PropertyTokenTest is Test {
 
         // After investment, available tokens decrease
         vm.startPrank(investor1);
-        usdc.approve(address(token), 100 * 1e6);
-        token.invest(100 * 1e6);
+        usdc.approve(address(token), 102 * 1e6);
+        token.invest(102 * 1e6);
         vm.stopPrank();
 
-        // With 2% platform fee: 100 * 0.98 = 98 USDC after fee
-        uint256 platformFee = (100 * 1e6 * token.PLATFORM_FEE_PERCENTAGE()) / 100;
-        uint256 amountAfterFee = 100 * 1e6 - platformFee;
+        // With 2% platform fee: 102 * 2 / 102 = 2 USDC fee
+        // amountAfterFee = 100 USDC
+        uint256 totalAmount = 102 * 1e6;
+        uint256 platformFee = (totalAmount * token.PLATFORM_FEE_PERCENTAGE()) / (100 + token.PLATFORM_FEE_PERCENTAGE());
+        uint256 amountAfterFee = totalAmount - platformFee;
         uint256 expectedAvailable = token.maxSupply() - ((amountAfterFee * 1e18) / token.TOKEN_PRICE());
         assertEq(token.getAvailableTokens(), expectedAvailable);
     }
@@ -294,24 +294,26 @@ contract PropertyTokenTest is Test {
 
         // After investment, sold tokens increase
         vm.startPrank(investor1);
-        usdc.approve(address(token), 100 * 1e6);
-        token.invest(100 * 1e6);
+        usdc.approve(address(token), 102 * 1e6);
+        token.invest(102 * 1e6);
         vm.stopPrank();
 
-        // With 2% platform fee: 100 * 0.98 = 98 USDC after fee
-        uint256 platformFee = (100 * 1e6 * token.PLATFORM_FEE_PERCENTAGE()) / 100;
-        uint256 amountAfterFee = 100 * 1e6 - platformFee;
+        // With 2% platform fee: 102 * 2 / 102 = 2 USDC fee
+        // amountAfterFee = 100 USDC
+        uint256 totalAmount = 102 * 1e6;
+        uint256 platformFee = (totalAmount * token.PLATFORM_FEE_PERCENTAGE()) / (100 + token.PLATFORM_FEE_PERCENTAGE());
+        uint256 amountAfterFee = totalAmount - platformFee;
         uint256 expectedSold = (amountAfterFee * 1e18) / token.TOKEN_PRICE();
         assertEq(token.getSoldTokens(), expectedSold);
     }
 
     function test_CannotInvestWhenSoldOut() public {
-        // maxSupply = 2,000 * 1e18 tokens
-        // To get maxSupply tokens after 2% fee: (investAmount * 0.98 * 1e18) / TOKEN_PRICE = maxSupply
-        // investAmount = (maxSupply * TOKEN_PRICE) / (0.98 * 1e18)
-        // investAmount = (maxSupply * TOKEN_PRICE * 100) / (98 * 1e18)
+        // Calculate amount needed to buy all tokens
+        // If we want to get maxSupply tokens after 2% fee:
+        // (totalAmount * 2 / 102) = fee, (totalAmount - fee) * 1e18 / TOKEN_PRICE = maxSupply
+        // totalAmount = (maxSupply * TOKEN_PRICE / 1e18) * 102 / 100
         uint256 totalCostAfterFee = (token.maxSupply() * token.TOKEN_PRICE()) / 1e18;
-        uint256 totalCost = (totalCostAfterFee * 100) / 98;
+        uint256 totalCost = (totalCostAfterFee * 102) / 100;
 
         usdc.mint(investor1, totalCost);
 
@@ -327,24 +329,23 @@ contract PropertyTokenTest is Test {
 
         // Second investor cannot buy
         vm.startPrank(investor2);
-        usdc.approve(address(token), 50 * 1e6);
+        usdc.approve(address(token), 51 * 1e6);
         vm.expectRevert("Not enough tokens available");
-        token.invest(50 * 1e6);
+        token.invest(51 * 1e6);
         vm.stopPrank();
     }
 
     function test_NoShareDilution() public {
-        // maxSupply = 2,000 * 1e18 tokens
-        // To buy 50% (1,000 * 1e18 tokens) after 2% fee: investAmount = (1000 * 1e18 * TOKEN_PRICE * 100) / (98 * 1e18)
+        // Calculate amounts to buy specific percentages
         uint256 halfSupply = token.maxSupply() / 2;
         uint256 quarterSupply = token.maxSupply() / 4;
 
         uint256 invest1AfterFee = (halfSupply * token.TOKEN_PRICE()) / 1e18;
         uint256 invest2AfterFee = (quarterSupply * token.TOKEN_PRICE()) / 1e18;
 
-        // Add 2% platform fee
-        uint256 invest1Amount = (invest1AfterFee * 100) / 98;
-        uint256 invest2Amount = (invest2AfterFee * 100) / 98;
+        // Add 2% platform fee: totalAmount = afterFee * 102 / 100
+        uint256 invest1Amount = (invest1AfterFee * 102) / 100;
+        uint256 invest2Amount = (invest2AfterFee * 102) / 100;
 
         usdc.mint(investor1, invest1Amount);
         usdc.mint(investor2, invest2Amount);

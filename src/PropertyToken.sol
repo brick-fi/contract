@@ -100,30 +100,30 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
      * @notice Invest in property and receive property tokens
      * @dev Tokens are transferred from contract's pre-minted supply
      * @dev Each token represents $50 USD of property value
-     * @dev 2% platform fee is deducted from investment amount
-     * @param amount Amount of payment token to invest (with payment token decimals)
+     * @dev 2% platform fee is deducted from the total amount sent
+     * @param totalAmount Total amount of payment token (investment + 2% fee)
+     * @dev Example: To invest $100, send $102 (100 + 2% fee of 2)
      */
-    function invest(uint256 amount) external whenNotPaused {
-        require(amount >= MIN_INVESTMENT, "Investment must be at least $50");
+    function invest(uint256 totalAmount) external whenNotPaused {
+        require(totalAmount >= MIN_INVESTMENT, "Investment must be at least $50");
         require(property.isActive, "Property not active");
 
-        // Calculate platform fee (2%)
-        uint256 platformFee = (amount * PLATFORM_FEE_PERCENTAGE) / 100;
-        uint256 investmentAfterFee = amount - platformFee;
+        // Calculate platform fee (2% of total)
+        // fee = totalAmount * 2 / 100 = totalAmount * 2 / 100
+        uint256 platformFee = (totalAmount * PLATFORM_FEE_PERCENTAGE) / (100 + PLATFORM_FEE_PERCENTAGE);
+        uint256 amountAfterFee = totalAmount - platformFee;
 
         // Calculate tokens: Each token = $50 USD
-        // amount is in payment token units (6 decimals), TOKEN_PRICE is in payment token units (6 decimals)
+        // amountAfterFee is in payment token units (6 decimals), TOKEN_PRICE is in payment token units (6 decimals)
         // Property tokens have 18 decimals
-        uint256 tokens = (investmentAfterFee * 1e18) / TOKEN_PRICE;
+        uint256 tokens = (amountAfterFee * 1e18) / TOKEN_PRICE;
         require(tokens > 0, "Investment too small");
 
         uint256 availableTokens = balanceOf(address(this));
         require(availableTokens >= tokens, "Not enough tokens available");
 
         // Transfer payment token from investor to contract
-        require(
-            paymentToken.transferFrom(msg.sender, address(this), investmentAfterFee), "Payment token transfer failed"
-        );
+        require(paymentToken.transferFrom(msg.sender, address(this), amountAfterFee), "Payment token transfer failed");
 
         // Transfer platform fee
         require(
@@ -135,12 +135,12 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
             investors.push(msg.sender);
             isInvestor[msg.sender] = true;
         }
-        investmentAmount[msg.sender] += amount;
+        investmentAmount[msg.sender] += amountAfterFee;
 
         // Transfer property tokens from contract to investor
         _transfer(address(this), msg.sender, tokens);
 
-        emit Invested(msg.sender, amount, tokens);
+        emit Invested(msg.sender, amountAfterFee, tokens);
         emit PlatformFeeCollected(platformFee, platformFeeRecipient);
     }
 
