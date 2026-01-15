@@ -32,7 +32,7 @@ Foundry consists of:
 ### Mantle Sepolia Testnet
 
 - **DemoUSDC**: [`0xf6c6D352545Eb7316fD3034232ff7eF635325D6F`](https://sepolia.mantlescan.xyz/address/0xf6c6D352545Eb7316fD3034232ff7eF635325D6F)
-- **PropertyFactory**: [`0xF569Ae2b5099C0E66Fe0edf9a9135BC69052D937`](https://sepolia.mantlescan.xyz/address/0xF569Ae2b5099C0E66Fe0edf9a9135BC69052D937)
+- **PropertyFactory**: [`0x27F3e1D50144C6B9ec580cB68B48236eDdDF3A56`](https://sepolia.mantlescan.xyz/address/0x27F3e1D50144C6B9ec580cB68B48236eDdDF3A56)
 
 ### Get Test USDC
 
