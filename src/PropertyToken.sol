@@ -17,7 +17,7 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
     uint256 public constant TOKEN_PRICE = 50 * 1e6; // Each token = $50 USD (6 decimals for standard stablecoins)
     uint256 public constant PLATFORM_FEE_PERCENTAGE = 2; // 2% platform fee
-    uint256 public constant MIN_INVESTMENT = 50 * 1e6; // Minimum $50 investment
+    uint256 public minInvestment; // Minimum investment amount (default: $50)
 
     // ===== Payment Token =====
     IERC20 public immutable paymentToken;
@@ -85,6 +85,7 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         paymentToken = IERC20(_paymentToken);
         platformFeeRecipient = _platformFeeRecipient;
         property = _property;
+        minInvestment = 50 * 1e6; // Default: $50 minimum
 
         // Calculate max supply: totalValue / $50
         // Payment token has 6 decimals, property token has 18 decimals
@@ -105,7 +106,7 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
      * @dev Example: To invest $100, send $102 (100 + 2% fee of 2)
      */
     function invest(uint256 totalAmount) external whenNotPaused {
-        require(totalAmount >= MIN_INVESTMENT, "Investment must be at least $50");
+        require(totalAmount >= minInvestment, "Investment below minimum");
         require(property.isActive, "Property not active");
 
         // Calculate platform fee (2% of total)
@@ -301,6 +302,11 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
 
     function setPropertyActive(bool active) external onlyRole(ADMIN_ROLE) {
         property.isActive = active;
+    }
+
+    function setMinInvestment(uint256 _minInvestment) external onlyRole(ADMIN_ROLE) {
+        require(_minInvestment > 0, "Minimum investment must be > 0");
+        minInvestment = _minInvestment;
     }
 
     function withdrawPaymentToken() external onlyRole(ADMIN_ROLE) {

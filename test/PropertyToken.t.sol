@@ -65,7 +65,7 @@ contract PropertyTokenTest is Test {
     function test_CannotInvestZero() public {
         vm.startPrank(investor1);
 
-        vm.expectRevert("Investment must be at least $50");
+        vm.expectRevert("Investment below minimum");
         token.invest(0);
         vm.stopPrank();
     }
