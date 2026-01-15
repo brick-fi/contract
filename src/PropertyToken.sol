@@ -147,14 +147,16 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
 
     // ===== Revenue Distribution (Core Feature) =====
     /**
-     * @notice Admin triggers revenue distribution
-     * @param expectedAmount Expected total amount for all tokens (in payment token units)
-     * @dev Admin inputs expected amount, but only pays for sold tokens
-     * @dev Example: expectedAmount = 10,000, sold = 2 tokens, maxSupply = 100
-     *      → actualAmount = 10,000 * (2 / 100) = 200 USDC
-     *      → Admin only transfers 200 USDC
-     *      → Each token owner gets equal share of actual amount
+     * @notice Admin triggers revenue distribution proportional to sold tokens
+     * @param expectedAmount Expected revenue amount IF ALL tokens were sold (in payment token units)
      * @param description Description of distribution (e.g., "January 2026 rental income")
+     * @dev Admin inputs expectedAmount as if all tokens were sold, but contract calculates actualAmount
+     * @dev actualAmount = expectedAmount * (soldTokens / maxSupply)
+     * @dev Example: expectedAmount = 10,000 USDC, sold = 2 tokens, maxSupply = 2000
+     *      → actualAmount = 10,000 * (2 / 2000) = 10 USDC
+     *      → Admin only transfers 10 USDC (not 10,000)
+     *      → Each token owner gets: 10 / 2 = 5 USDC each when they claim
+     * @dev This prevents wasting money on unsold token shares
      */
     function distributeRevenue(uint256 expectedAmount, string calldata description)
         external
@@ -171,10 +173,23 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         uint256 actualAmount = (expectedAmount * soldTokens) / maxSupply;
         require(actualAmount > 0, "Distribution amount too small");
 
-        // Transfer only the actual amount from distributor to contract
+        // Transfer the actual amount from distributor to contract
         require(paymentToken.transferFrom(msg.sender, address(this), actualAmount), "Payment token transfer failed");
 
-        // Store distribution record with actual amount and sold tokens basis
+        // Automatically distribute to all investors (push-based)
+        for (uint256 i = 0; i < investors.length; i++) {
+            address investor = investors[i];
+            uint256 investorTokens = balanceOf(investor);
+
+            if (investorTokens > 0) {
+                uint256 investorShare = (actualAmount * investorTokens) / soldTokens;
+                if (investorShare > 0) {
+                    require(paymentToken.transfer(investor, investorShare), "Failed to distribute to investor");
+                }
+            }
+        }
+
+        // Store distribution record for reference
         distributions.push(
             Distribution({
                 totalAmount: actualAmount,
@@ -191,9 +206,11 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     /**
      * @notice Claim revenue from a specific distribution
      * @param distributionId ID of the distribution to claim from
-     * @dev Gas-efficient: claim-based instead of automatic push
-     * @dev Each token receives fixed share based on maxSupply
-     * @dev Example: 100 tokens total, user holds 10 tokens, $10,000 distributed = user gets $1,000
+     * @dev Gas-efficient: claim-based (pull) instead of automatic push
+     * @dev User must actively call this to receive their share
+     * @dev Each token owner gets equal share: (actualAmount * userTokens) / soldTokens
+     * @dev Example: actualAmount = 10 USDC, user has 1 token, 2 tokens sold
+     *      → user gets (10 * 1) / 2 = 5 USDC
      */
     function claimRevenue(uint256 distributionId) external {
         require(distributionId < distributions.length, "Invalid distribution");
@@ -202,8 +219,9 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
 
         Distribution memory dist = distributions[distributionId];
 
-        // Calculate user's share based on token balance and maxSupply
-        // dist.totalSupplyAtDistribution is now maxSupply (not soldTokens)
+        // Calculate user's share based on token balance and sold tokens
+        // dist.totalSupplyAtDistribution is now soldTokens (not maxSupply)
+        // Each token owner gets equal share: (actualAmount * userTokens) / soldTokens
         uint256 userShare = (dist.totalAmount * balanceOf(msg.sender)) / dist.totalSupplyAtDistribution;
         require(userShare > 0, "No revenue to claim");
 
@@ -220,12 +238,19 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         return distributions.length;
     }
 
+    /**
+     * @notice Get amount pending for user to claim from a distribution
+     * @param user Address of user
+     * @param distributionId ID of distribution
+     * @return Amount user can claim (0 if already claimed or no tokens held)
+     */
     function getPendingRevenue(address user, uint256 distributionId) external view returns (uint256) {
         if (distributionId >= distributions.length) return 0;
         if (hasClaimed[user][distributionId]) return 0;
         if (balanceOf(user) == 0) return 0;
 
         Distribution memory dist = distributions[distributionId];
+        // Calculate: (actualAmount * userTokens) / soldTokens
         return (dist.totalAmount * balanceOf(user)) / dist.totalSupplyAtDistribution;
     }
 
