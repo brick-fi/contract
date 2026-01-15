@@ -227,13 +227,6 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     }
 
     /**
-     * @notice Get list of all investors
-     */
-    function getInvestors() external view returns (address[] memory) {
-        return investors;
-    }
-
-    /**
      * @notice Get funding percentage (0-100)
      */
     function getFundingPercentage() external view returns (uint256) {
