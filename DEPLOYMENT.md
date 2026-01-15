@@ -59,7 +59,7 @@ Platform Fee Recipient: 0x...
 
 After deployment, save the factory address. Example:
 ```
-PropertyFactory: 0xed844A85D89C95B17caAF5141F014a8069a662fa
+PropertyFactory: 0x1619587D0d23dc67814C4C33A9639B6BDC163C18
 USDC: 0xf6c6D352545Eb7316fD3034232ff7eF635325D6F
 ```
 
@@ -68,7 +68,7 @@ USDC: 0xf6c6D352545Eb7316fD3034232ff7eF635325D6F
 Update `.env.local` in frontend with new PropertyFactory address:
 
 ```bash
-NEXT_PUBLIC_PROPERTY_FACTORY_ADDRESS=0xed844A85D89C95B17caAF5141F014a8069a662fa
+NEXT_PUBLIC_PROPERTY_FACTORY_ADDRESS=0x1619587D0d23dc67814C4C33A9639B6BDC163C18
 NEXT_PUBLIC_DEMO_USDC_ADDRESS=0xf6c6D352545Eb7316fD3034232ff7eF635325D6F
 ```
 
@@ -92,7 +92,7 @@ https://sepolia.mantlescan.xyz/
 
 ```bash
 # Get all properties (should be empty initially)
-cast call 0xed844A85D89C95B17caAF5141F014a8069a662fa \
+cast call 0x1619587D0d23dc67814C4C33A9639B6BDC163C18 \
   "getAllPropertiesCount()(uint256)" \
   --rpc-url https://rpc.sepolia.mantle.xyz
 ```
@@ -134,14 +134,14 @@ After deployment, create a test property via frontend or using cast:
 # Approve USDC for PropertyFactory
 cast send 0xf6c6D352545Eb7316fD3034232ff7eF635325D6F \
   "approve(address,uint256)" \
-  0xed844A85D89C95B17caAF5141F014a8069a662fa \
+  0x1619587D0d23dc67814C4C33A9639B6BDC163C18 \
   999999999999 \
   --rpc-url https://rpc.sepolia.mantle.xyz \
   --private-key <YOUR_PRIVATE_KEY> \
   --legacy
 
 # Create property
-cast send 0xed844A85D89C95B17caAF5141F014a8069a662fa \
+cast send 0x1619587D0d23dc67814C4C33A9639B6BDC163C18 \
   "createProperty(string,string,(string,string,uint256,uint256,string,bool))" \
   "Test Property" \
   "TEST" \
@@ -157,7 +157,7 @@ cast send 0xed844A85D89C95B17caAF5141F014a8069a662fa \
 - **Faucet**: https://faucet.sepolia.mantle.xyz/
 - **RPC URL**: https://rpc.sepolia.mantle.xyz
 - **Current Deployment**:
-  - PropertyFactory: https://sepolia.mantlescan.xyz/address/0xed844A85D89C95B17caAF5141F014a8069a662fa
+  - PropertyFactory: https://sepolia.mantlescan.xyz/address/0x1619587D0d23dc67814C4C33A9639B6BDC163C18
   - USDC: https://sepolia.mantlescan.xyz/address/0xf6c6D352545Eb7316fD3034232ff7eF635325D6F
 
 ## Troubleshooting

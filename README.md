@@ -9,7 +9,7 @@ BrickFi enables fractional investment in real estate rental income through ERC-2
 ## Deployed Contracts (Mantle Sepolia)
 
 - **USDC**: [`0xf6c6D352545Eb7316fD3034232ff7eF635325D6F`](https://sepolia.mantlescan.xyz/address/0xf6c6D352545Eb7316fD3034232ff7eF635325D6F)
-- **PropertyFactory**: [`0xed844A85D89C95B17caAF5141F014a8069a662fa`](https://sepolia.mantlescan.xyz/address/0xed844A85D89C95B17caAF5141F014a8069a662fa)
+- **PropertyFactory**: [`0x1619587D0d23dc67814C4C33A9639B6BDC163C18`](https://sepolia.mantlescan.xyz/address/0x1619587D0d23dc67814C4C33A9639B6BDC163C18)
 
 ## Network
 
