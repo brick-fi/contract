@@ -192,24 +192,6 @@ contract PropertyTokenTest is Test {
         assertFalse(isActive);
     }
 
-    function test_WithdrawPaymentToken() public {
-        // Investor invests 102 USDC (100 after fee)
-        vm.startPrank(investor1);
-        usdc.approve(address(token), 102 * 1e6);
-        token.invest(102 * 1e6);
-        vm.stopPrank();
-
-        // Admin withdraws (should get 100 USDC after fee)
-        uint256 totalAmount = 102 * 1e6;
-        uint256 platformFee = (totalAmount * token.PLATFORM_FEE_PERCENTAGE()) / (100 + token.PLATFORM_FEE_PERCENTAGE());
-        uint256 expectedAmount = totalAmount - platformFee;
-        uint256 adminBalanceBefore = usdc.balanceOf(admin);
-        vm.prank(admin);
-        token.withdrawPaymentToken();
-
-        assertEq(usdc.balanceOf(admin) - adminBalanceBefore, expectedAmount);
-    }
-
     // ===== Token Supply Tests =====
     function test_PreMintedSupply() public view {
         // Contract should have all tokens pre-minted

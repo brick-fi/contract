@@ -302,10 +302,4 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         require(_minInvestment > 0, "Minimum investment must be > 0");
         minInvestment = _minInvestment;
     }
-
-    function withdrawPaymentToken() external onlyRole(ADMIN_ROLE) {
-        uint256 balance = paymentToken.balanceOf(address(this));
-        require(balance > 0, "No payment token to withdraw");
-        require(paymentToken.transfer(msg.sender, balance), "Payment token transfer failed");
-    }
 }
