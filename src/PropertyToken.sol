@@ -58,10 +58,8 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
     }
 
     Distribution[] public distributions;
-    mapping(address => mapping(uint256 => bool)) public hasClaimed;
 
     event RevenueDistributed(uint256 indexed distributionId, uint256 totalAmount, string description);
-    event RevenueClaimed(address indexed user, uint256 indexed distributionId, uint256 amount);
     event Invested(address indexed investor, uint256 amount, uint256 tokens);
 
     constructor(
@@ -203,55 +201,9 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         emit RevenueDistributed(distributions.length - 1, actualAmount, description);
     }
 
-    /**
-     * @notice Claim revenue from a specific distribution
-     * @param distributionId ID of the distribution to claim from
-     * @dev Gas-efficient: claim-based (pull) instead of automatic push
-     * @dev User must actively call this to receive their share
-     * @dev Each token owner gets equal share: (actualAmount * userTokens) / soldTokens
-     * @dev Example: actualAmount = 10 USDC, user has 1 token, 2 tokens sold
-     *      → user gets (10 * 1) / 2 = 5 USDC
-     */
-    function claimRevenue(uint256 distributionId) external {
-        require(distributionId < distributions.length, "Invalid distribution");
-        require(!hasClaimed[msg.sender][distributionId], "Already claimed");
-        require(balanceOf(msg.sender) > 0, "No tokens held");
-
-        Distribution memory dist = distributions[distributionId];
-
-        // Calculate user's share based on token balance and sold tokens
-        // dist.totalSupplyAtDistribution is now soldTokens (not maxSupply)
-        // Each token owner gets equal share: (actualAmount * userTokens) / soldTokens
-        uint256 userShare = (dist.totalAmount * balanceOf(msg.sender)) / dist.totalSupplyAtDistribution;
-        require(userShare > 0, "No revenue to claim");
-
-        hasClaimed[msg.sender][distributionId] = true;
-
-        // Transfer payment token to user
-        require(paymentToken.transfer(msg.sender, userShare), "Payment token transfer failed");
-
-        emit RevenueClaimed(msg.sender, distributionId, userShare);
-    }
-
     // ===== View Functions =====
     function getDistributionCount() external view returns (uint256) {
         return distributions.length;
-    }
-
-    /**
-     * @notice Get amount pending for user to claim from a distribution
-     * @param user Address of user
-     * @param distributionId ID of distribution
-     * @return Amount user can claim (0 if already claimed or no tokens held)
-     */
-    function getPendingRevenue(address user, uint256 distributionId) external view returns (uint256) {
-        if (distributionId >= distributions.length) return 0;
-        if (hasClaimed[user][distributionId]) return 0;
-        if (balanceOf(user) == 0) return 0;
-
-        Distribution memory dist = distributions[distributionId];
-        // Calculate: (actualAmount * userTokens) / soldTokens
-        return (dist.totalAmount * balanceOf(user)) / dist.totalSupplyAtDistribution;
     }
 
     function getDistribution(uint256 distributionId) external view returns (Distribution memory) {
