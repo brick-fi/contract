@@ -282,6 +282,14 @@ contract PropertyToken is ERC20, AccessControl, Pausable, ERC20Burnable {
         return investmentAmount[user];
     }
 
+    /**
+     * @notice Get minimum investment amount required
+     * @return Minimum investment amount in payment token units (6 decimals)
+     */
+    function getMinInvestment() external view returns (uint256) {
+        return minInvestment;
+    }
+
     // ===== Transfer Restrictions =====
     function _update(address from, address to, uint256 value) internal override whenNotPaused {
         super._update(from, to, value);
